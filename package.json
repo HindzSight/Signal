@@ -1,0 +1,14 @@
+{
+  "name": "signal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Secure, temporary folder sharing through Cloudflare Quick Tunnels.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "dev:ui": "npm --prefix frontend run dev",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}
