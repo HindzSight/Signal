@@ -1,8 +1,7 @@
 # Running Signal locally
 
 A step-by-step guide to running the Folder Share dashboard on your own machine.
-Commands are shown for **Windows PowerShell** (use `npm` instead of `npm.cmd` on
-macOS/Linux).
+Commands are shown for both **Windows PowerShell** and **macOS/Linux (bash/zsh)**.
 
 ---
 
@@ -27,8 +26,13 @@ run `cloudflared --version` to confirm. The dashboard also shows a red
 From the project root (`Signal`):
 
 ```powershell
-# Install the backend has no dependencies, but this builds the React dashboard.
+# Windows (PowerShell) — the backend has no dependencies, but this builds the React dashboard.
 npm.cmd run build
+```
+
+```bash
+# macOS / Linux
+npm run build
 ```
 
 `npm run build` installs the frontend's dependencies and compiles the React app
@@ -42,7 +46,11 @@ into `frontend/dist`. You only need to re-run it when the UI source changes.
 ## 3. Start the app
 
 ```powershell
-npm.cmd start
+npm.cmd start    # Windows (PowerShell)
+```
+
+```bash
+npm start        # macOS / Linux
 ```
 
 You should see:
@@ -83,6 +91,7 @@ every public link stops working.
 For live hot-reload while editing the React frontend, run two terminals:
 
 ```powershell
+# Windows (PowerShell)
 # Terminal 1 — backend API + tunnels
 npm.cmd start
 
@@ -90,11 +99,21 @@ npm.cmd start
 npm.cmd run dev:ui
 ```
 
+```bash
+# macOS / Linux
+# Terminal 1 — backend API + tunnels
+npm start
+
+# Terminal 2 — Vite dev server with hot reload
+npm run dev:ui
+```
+
 Then open **<http://127.0.0.1:5173>** (the Vite dev server). It proxies `/api`,
 `/s/`, and the recipient stylesheet to the backend on `:8787`, so it behaves
 exactly like production. Edits to `frontend/src` refresh instantly.
 
-When you're done, rebuild for production with `npm.cmd run build`.
+When you're done, rebuild for production with `npm.cmd run build` (Windows) or
+`npm run build` (macOS/Linux).
 
 ---
 
@@ -108,7 +127,13 @@ When you're done, rebuild for production with `npm.cmd run build`.
 Change the backend port with an environment variable:
 
 ```powershell
+# Windows (PowerShell)
 $env:PORT = 9000; npm.cmd start
+```
+
+```bash
+# macOS / Linux
+PORT=9000 npm start
 ```
 
 (If you change it, update `BACKEND` in `frontend/vite.config.ts` too so the dev
@@ -123,15 +148,19 @@ proxy still points at the right place.)
 | Red **"cloudflared missing"** badge | Install cloudflared and make sure it's on `PATH`; restart the dashboard. |
 | **"Timed out waiting for Cloudflare Quick Tunnel"** | Check your internet connection / firewall, then try again. |
 | Browse button does nothing | Make sure you're on `http://127.0.0.1:8787` (the picker only works for local requests). |
-| Dashboard looks basic / unstyled | Run `npm.cmd run build` to compile the React UI, then restart. |
-| Port `8787` already in use | Set `$env:PORT` to a free port (see above). |
+| Dashboard looks basic / unstyled | Run `npm.cmd run build` (Windows) / `npm run build` (macOS/Linux) to compile the React UI, then restart. |
+| Port `8787` already in use | Set `$env:PORT` (Windows) or `PORT` (macOS/Linux) to a free port (see above). |
 
 ---
 
 ## Running the tests
 
 ```powershell
-npm.cmd test
+npm.cmd test    # Windows (PowerShell)
+```
+
+```bash
+npm test        # macOS / Linux
 ```
 
 Covers passcode hashing, path-containment/symlink safety, and share lifecycle.

@@ -29,8 +29,15 @@ directly off your disk while the tunnel is open.
 Build the dashboard once, then start the server:
 
 ```powershell
+# Windows (PowerShell)
 npm.cmd run build   # installs frontend deps + builds frontend/dist
 npm.cmd start       # serves the dashboard at http://127.0.0.1:8787
+```
+
+```bash
+# macOS / Linux
+npm run build   # installs frontend deps + builds frontend/dist
+npm start       # serves the dashboard at http://127.0.0.1:8787
 ```
 
 Open `http://127.0.0.1:8787`, choose a folder, open a secure channel, and send
@@ -44,8 +51,15 @@ the public link and passcode **separately**. Closing the service stops every sha
 Run the backend and the Vite dev server (with hot reload) side by side:
 
 ```powershell
+# Windows (PowerShell)
 npm.cmd start          # terminal 1 — backend on :8787
 npm.cmd run dev:ui     # terminal 2 — Vite on http://127.0.0.1:5173
+```
+
+```bash
+# macOS / Linux
+npm start          # terminal 1 — backend on :8787
+npm run dev:ui     # terminal 2 — Vite on http://127.0.0.1:5173
 ```
 
 Vite proxies `/api`, `/s/`, and the recipient stylesheet to the backend, so the
@@ -61,5 +75,9 @@ dev server behaves exactly like production.
 ## Test
 
 ```powershell
-npm.cmd test
+npm.cmd test    # Windows (PowerShell)
+```
+
+```bash
+npm test        # macOS / Linux
 ```
