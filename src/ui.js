@@ -14,7 +14,113 @@ export const TRANSFER_UI_STYLE = `
 .transfer-large{display:block;padding:14px 0 16px}.transfer-line,.transfer-details{display:flex;align-items:center;justify-content:space-between;gap:16px}.transfer-speed{color:var(--foreground);font-size:13px;white-space:nowrap}.transfer-status{display:block;margin-top:3px}.transfer-status.completed{color:#16a34a}.transfer-status.cancelled{color:#ef4444}.transfer-details{margin:12px 0 7px;color:var(--muted);font-size:13px}.progress-large{width:100%;height:12px;border-radius:999px;background:#e2e8f0}.progress-large i{background:var(--primary);border-radius:inherit;transition:width .2s ease}:root.dark .progress-large{background:#1e293b}:root.dark .progress-large i{background:#f8fafc}@media(max-width:680px){.transfer-line{align-items:flex-start}.transfer-speed{padding-top:4px}}
 `;
 
-export const PUBLIC_RECIPIENT_JS = `const root=document.querySelector('.recipient');const escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));const bytes=value=>{let number=Number(value)||0;const units=['B','KB','MB','GB','TB'];let unit=0;while(number>=1000&&unit<units.length-1){number/=1000;unit++}return (unit===0?number.toFixed(0):number.toFixed(number>=100?0:1))+' '+units[unit]};function tree(items){return '<ul class="file-tree">'+items.map(item=>item.type==='directory'?'<li class="folder-row"><details open><summary><span class="file-kind folder-kind">FOLDER</span><b>'+escapeHtml(item.name)+'</b></summary>'+tree(item.children)+'</details></li>':'<li class="file-row"><span class="file-kind">FILE</span><a href="/s/'+SHARE.id+'/file/'+item.path.split('/').map(encodeURIComponent).join('/')+'">'+escapeHtml(item.name)+'</a><span class="file-size">'+bytes(item.size)+'</span></li>').join('')+'</ul>'}fetch('/s/'+SHARE.id+'/tree').then(response=>{if(!response.ok)throw Error();return response.json()}).then(items=>root.innerHTML='<section class="recipient-browser"><header class="recipient-browser-head"><div><p class="eyebrow">SIGNAL &middot; SECURE TRANSFER</p><h1>'+escapeHtml(SHARE.name)+'</h1><p>Choose a file to download from this shared folder.</p></div><span class="recipient-ready">Access granted</span></header><div class="file-panel">'+(items.length?tree(items):'<div class="empty">This folder is empty.</div>')+'</div></section>').catch(()=>root.innerHTML='<section class="recipient-card"><h1>Share unavailable</h1><p class="recipient-copy">This share may have expired or been stopped by its sender.</p></section>');`;
+export const PUBLIC_RECIPIENT_JS = `
+const root = document.querySelector('.recipient');
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const bytes = value => {
+  let number = Number(value) || 0;
+  const units = ['B','KB','MB','GB','TB'];
+  let unit = 0;
+  while (number >= 1000 && unit < units.length - 1) { number /= 1000; unit++; }
+  return (unit === 0 ? number.toFixed(0) : number.toFixed(number >= 100 ? 0 : 1)) + ' ' + units[unit];
+};
+const fileHref = path => '/s/' + SHARE.id + '/file/' + path.split('/').map(encodeURIComponent).join('/');
+
+function tree(items) {
+  return '<ul class="file-tree">' + items.map(item => {
+    if (item.type === 'directory') {
+      return '<li class="folder-row"><input type="checkbox" class="row-check folder-check" aria-label="Select all in ' + escapeHtml(item.name) + '"><details open class="folder-details"><summary><span class="file-kind folder-kind">FOLDER</span><b>' + escapeHtml(item.name) + '</b></summary>' + tree(item.children) + '</details></li>';
+    }
+    const href = fileHref(item.path);
+    return '<li class="file-row" data-path="' + escapeHtml(item.path) + '"><input type="checkbox" class="row-check" data-path="' + escapeHtml(item.path) + '"><span class="file-kind">FILE</span><a href="' + href + '">' + escapeHtml(item.name) + '</a><span class="file-size">' + bytes(item.size) + '</span><a class="file-download" href="' + href + '" title="Download ' + escapeHtml(item.name) + '" aria-label="Download ' + escapeHtml(item.name) + '">&darr;</a></li>';
+  }).join('') + '</ul>';
+}
+
+function wireBrowser(hasFiles) {
+  if (!hasFiles) return;
+  const panel = document.querySelector('#file-panel');
+  const toggleBtn = document.querySelector('#select-toggle');
+  const actions = document.querySelector('#select-actions');
+  const countEl = document.querySelector('#select-count');
+  const downloadBtn = document.querySelector('#download-selected');
+  const selectAllBtn = document.querySelector('#select-all');
+  let selecting = false;
+
+  const fileChecks = () => Array.from(panel.querySelectorAll('input.row-check[data-path]'));
+
+  function updateState() {
+    const checks = fileChecks();
+    const checked = checks.filter(c => c.checked);
+    countEl.textContent = checked.length + ' selected';
+    downloadBtn.disabled = checked.length === 0;
+    panel.querySelectorAll('input.folder-check').forEach(folderCheck => {
+      const details = folderCheck.closest('.folder-row').querySelector(':scope > .folder-details');
+      const children = Array.from(details.querySelectorAll('input.row-check[data-path]'));
+      const allChecked = children.length > 0 && children.every(c => c.checked);
+      const someChecked = children.some(c => c.checked);
+      folderCheck.checked = allChecked;
+      folderCheck.indeterminate = !allChecked && someChecked;
+    });
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    selecting = !selecting;
+    panel.classList.toggle('selecting', selecting);
+    actions.hidden = !selecting;
+    toggleBtn.textContent = selecting ? 'Cancel' : 'Select files';
+    if (!selecting) { fileChecks().forEach(c => c.checked = false); updateState(); }
+  });
+
+  selectAllBtn.addEventListener('click', () => {
+    const checks = fileChecks();
+    const allSelected = checks.length > 0 && checks.every(c => c.checked);
+    checks.forEach(c => c.checked = !allSelected);
+    updateState();
+  });
+
+  panel.addEventListener('change', event => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+    if (target.classList.contains('folder-check')) {
+      const details = target.closest('.folder-row').querySelector(':scope > .folder-details');
+      details.querySelectorAll('input.row-check[data-path]').forEach(c => c.checked = target.checked);
+    }
+    updateState();
+  });
+
+  downloadBtn.addEventListener('click', async () => {
+    const paths = fileChecks().filter(c => c.checked).map(c => c.dataset.path);
+    if (!paths.length) return;
+    downloadBtn.disabled = true;
+    const original = downloadBtn.textContent;
+    for (const path of paths) {
+      const link = document.createElement('a');
+      link.href = fileHref(path);
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+    downloadBtn.textContent = original;
+    updateState();
+  });
+
+  updateState();
+}
+
+fetch('/s/' + SHARE.id + '/tree')
+  .then(response => { if (!response.ok) throw Error(); return response.json(); })
+  .then(items => {
+    root.innerHTML = '<section class="recipient-browser"><header class="recipient-browser-head"><div><p class="eyebrow">SIGNAL &middot; SECURE TRANSFER</p><h1>' + escapeHtml(SHARE.name) + '</h1><p>Choose a file to download from this shared folder.</p></div><span class="recipient-ready">Access granted</span></header>' +
+      (items.length ? '<div class="file-toolbar"><button type="button" class="button secondary compact" id="select-toggle">Select files</button><div class="file-toolbar-actions" id="select-actions" hidden><span id="select-count" class="muted">0 selected</span><button type="button" class="button secondary compact" id="select-all">Select all</button><button type="button" class="button primary compact" id="download-selected" disabled>Download selected</button></div></div>' : '') +
+      '<div class="file-panel" id="file-panel">' + (items.length ? tree(items) : '<div class="empty">This folder is empty.</div>') + '</div></section>';
+    wireBrowser(items.length > 0);
+  })
+  .catch(() => {
+    root.innerHTML = '<section class="recipient-card"><h1>Share unavailable</h1><p class="recipient-copy">This share may have expired or been stopped by its sender.</p></section>';
+  });
+`;
 
 /*
   Recipient surface - the public /s/<id> page your recipient opens through the
@@ -39,6 +145,9 @@ export const RECIPIENT_UI_STYLE = `
 .recipient-body .button.primary,.recipient-submit{width:100%;margin-top:10px;height:48px;border:0;border-radius:10px;background:linear-gradient(180deg,var(--signal-glow),var(--primary));color:#17120c;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 12px 34px -10px color-mix(in oklab,var(--primary) 70%,transparent),0 1px 0 0 #ffffff44 inset;transition:filter .15s,transform .05s}
 .recipient-body .button.primary:hover{filter:brightness(1.06)}
 .recipient-body .button.primary:active{transform:translateY(1px)}
+.recipient-body .secondary,.recipient-body .icon-button{background:var(--card);border-color:var(--border);color:var(--foreground)}
+.recipient-body .secondary:hover,.recipient-body .icon-button:hover{background:#241f16}
+.recipient-body .button.primary.compact,.recipient-body .primary.compact{width:auto;margin-top:0}
 .recipient-error{margin:-6px 0 12px;color:#ff8a7a;font-size:13px;font-weight:600}
 .recipient-note{margin:20px 0 0;color:var(--muted);font-size:12px;text-align:center}
 .recipient-browser{overflow:hidden}
@@ -46,23 +155,31 @@ export const RECIPIENT_UI_STYLE = `
 .recipient-browser-head p{margin:0;color:var(--muted);font-size:14px}
 .recipient-ready{display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in oklab,var(--online) 35%,transparent);background:color-mix(in oklab,var(--online) 12%,transparent);color:var(--online);padding:6px 12px;border-radius:999px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
 .recipient-ready::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--online);box-shadow:0 0 8px var(--online)}
+.file-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.file-toolbar-actions{display:flex;align-items:center;gap:10px}
+.file-toolbar-actions[hidden]{display:none}
 .file-panel{padding:14px 16px 22px;max-height:62vh;overflow:auto}
 .file-tree{margin:0;padding-left:0;list-style:none}
 .file-tree .file-tree{margin-left:16px;padding-left:8px;border-left:1px solid var(--border)}
+.recipient-body input.row-check{display:none;flex:none;width:16px;height:16px;padding:0;background:none;border:1px solid var(--input);border-radius:4px;accent-color:var(--primary);cursor:pointer}
+.file-panel.selecting .row-check{display:inline-block}
+.folder-row{display:flex;align-items:flex-start;gap:10px}
+.folder-row .folder-details{flex:1;min-width:0}
+.folder-row .row-check{margin-top:14px}
 .file-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;transition:background .12s}
 .file-row:hover{background:#241f16}
 .file-row a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--foreground);font-size:14px;text-decoration:none;transition:color .12s}
 .file-row:hover a{color:var(--signal-glow)}
-.file-row::after{content:"\\2193";margin-left:2px;color:var(--primary);font-weight:800;opacity:0;transition:opacity .12s}
-.file-row:hover::after{opacity:1}
 .file-size{margin-left:auto;color:var(--muted);font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;white-space:nowrap}
+.file-row a.file-download{flex:none;min-width:26px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;border-radius:6px;color:var(--primary);text-decoration:none;font-weight:800;opacity:.55;transition:opacity .12s,background .12s}
+.file-download:hover,.file-download:focus-visible{opacity:1;background:color-mix(in oklab,var(--primary) 16%,transparent)}
 .file-kind{display:grid;place-items:center;min-width:40px;height:26px;background:#2a2318;color:#c9a678;border:1px solid var(--border);border-radius:6px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:8px;font-weight:800;letter-spacing:.08em}
 .folder-kind{background:color-mix(in oklab,var(--primary) 14%,transparent);color:var(--signal-glow);border-color:color-mix(in oklab,var(--primary) 25%,transparent)}
 details>summary{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;cursor:pointer;list-style:none;font-size:14px;font-weight:600;transition:background .12s}
 details>summary:hover{background:#241f16}
 details>summary::-webkit-details-marker{display:none}
 .recipient .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}
-@media(max-width:600px){.recipient-card{padding:26px}.recipient-browser-head{padding:22px;flex-direction:column}.file-panel{padding:10px}}
+@media(max-width:600px){.recipient-card{padding:26px}.recipient-browser-head{padding:22px;flex-direction:column}.file-panel{padding:10px}.file-toolbar{flex-direction:column;align-items:stretch}.file-toolbar-actions{flex-wrap:wrap}}
 `;
 
 export const UI_OVERRIDES = `
