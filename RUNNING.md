@@ -12,7 +12,7 @@ Commands are shown for both **Windows PowerShell** and **macOS/Linux (bash/zsh)*
 | **Node.js** | 20 or newer | `node --version` | <https://nodejs.org> |
 | **cloudflared** | any recent | `cloudflared --version` | [Cloudflare downloads](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) |
 
-`cloudflared` must be on your `PATH` — open a fresh terminal after installing and
+`cloudflared` must be on your `PATH` - open a fresh terminal after installing and
 run `cloudflared --version` to confirm. The dashboard also shows a red
 **"cloudflared missing"** badge if it can't find it.
 
@@ -26,7 +26,7 @@ run `cloudflared --version` to confirm. The dashboard also shows a red
 From the project root (`Signal`):
 
 ```powershell
-# Windows (PowerShell) — the backend has no dependencies, but this builds the React dashboard.
+# Windows (PowerShell) - the backend has no dependencies, but this builds the React dashboard.
 npm.cmd run build
 ```
 
@@ -38,7 +38,7 @@ npm run build
 `npm run build` installs the frontend's dependencies and compiles the React app
 into `frontend/dist`. You only need to re-run it when the UI source changes.
 
-> **Skipping the build?** The server still runs — it automatically falls back to
+> **Skipping the build?** The server still runs - it automatically falls back to
 > a lightweight built-in dashboard. You just won't get the polished "SIGNAL" UI.
 
 ---
@@ -71,7 +71,7 @@ Open **<http://127.0.0.1:8787>** in your browser.
    clipboard together**.
 4. Send the **link** and the **passcode** to your recipient **through separate
    channels** (e.g. link by email, passcode by text) for best security.
-5. Watch the **Active channels** panel — each file the recipient downloads shows
+5. Watch the **Active channels** panel - each file the recipient downloads shows
    up live with progress, speed, and status.
 
 To stop a share immediately, click **Stop** on its card and confirm. Closing the
@@ -92,19 +92,19 @@ For live hot-reload while editing the React frontend, run two terminals:
 
 ```powershell
 # Windows (PowerShell)
-# Terminal 1 — backend API + tunnels
+# Terminal 1 - backend API + tunnels
 npm.cmd start
 
-# Terminal 2 — Vite dev server with hot reload
+# Terminal 2 - Vite dev server with hot reload
 npm.cmd run dev:ui
 ```
 
 ```bash
 # macOS / Linux
-# Terminal 1 — backend API + tunnels
+# Terminal 1 - backend API + tunnels
 npm start
 
-# Terminal 2 — Vite dev server with hot reload
+# Terminal 2 - Vite dev server with hot reload
 npm run dev:ui
 ```
 

@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  SIGNAL — a beacon across the ocean.
+  SIGNAL - a beacon across the ocean.
   A warm-ink transmission instrument: deep charcoal with a warm undertone,
   a single dominant signal-amber accent, and monospace telemetry readouts.
 */
@@ -40,7 +40,7 @@
 }
 
 .dark {
-  /* Warm ink cockpit — the primary theme */
+  /* Warm ink cockpit - the primary theme */
   --background: #14110d;
   --foreground: #f3ece0;
   --card: #1d1913;

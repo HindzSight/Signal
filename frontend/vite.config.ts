@@ -18,7 +18,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      // NOTE: keep '/s/' with the trailing slash — a bare '/s' prefix-matches
+      // NOTE: keep '/s/' with the trailing slash - a bare '/s' prefix-matches
       // Vite's own '/src/*' module requests and breaks the whole dev server.
       '/api': { target: BACKEND, changeOrigin: true },
       '/s/': { target: BACKEND, changeOrigin: true },

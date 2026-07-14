@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Eases a number toward its target with requestAnimationFrame — a telemetry ticker. */
+/** Eases a number toward its target with requestAnimationFrame - a telemetry ticker. */
 export function useAnimatedNumber(target: number, duration = 500) {
   const [display, setDisplay] = useState(target);
   const fromRef = useRef(target);

@@ -1,7 +1,7 @@
-# Signal — Folder Share Dashboard
+# Signal - Folder Share Dashboard
 
 Beam a folder straight from your computer to anyone, through a temporary,
-passcode-protected Cloudflare Quick Tunnel — and watch their downloads in real
+passcode-protected Cloudflare Quick Tunnel - and watch their downloads in real
 time. Files are never uploaded to this app or any storage provider; they stream
 directly off your disk while the tunnel is open.
 
@@ -44,7 +44,7 @@ Open `http://127.0.0.1:8787`, choose a folder, open a secure channel, and send
 the public link and passcode **separately**. Closing the service stops every share.
 
 > If `frontend/dist` is missing (you skipped the build), the server automatically
-> falls back to the lightweight inline dashboard — nothing breaks.
+> falls back to the lightweight inline dashboard - nothing breaks.
 
 ## Develop the UI
 
@@ -52,14 +52,14 @@ Run the backend and the Vite dev server (with hot reload) side by side:
 
 ```powershell
 # Windows (PowerShell)
-npm.cmd start          # terminal 1 — backend on :8787
-npm.cmd run dev:ui     # terminal 2 — Vite on http://127.0.0.1:5173
+npm.cmd start          # terminal 1 - backend on :8787
+npm.cmd run dev:ui     # terminal 2 - Vite on http://127.0.0.1:5173
 ```
 
 ```bash
 # macOS / Linux
-npm start          # terminal 1 — backend on :8787
-npm run dev:ui     # terminal 2 — Vite on http://127.0.0.1:5173
+npm start          # terminal 1 - backend on :8787
+npm run dev:ui     # terminal 2 - Vite on http://127.0.0.1:5173
 ```
 
 Vite proxies `/api`, `/s/`, and the recipient stylesheet to the backend, so the

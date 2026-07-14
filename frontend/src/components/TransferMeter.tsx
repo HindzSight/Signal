@@ -72,7 +72,7 @@ export function TransferMeter({ transfer }: { transfer: Transfer }) {
           <span className="opacity-50"> / {formatBytes(transfer.size)}</span>
         </span>
         <span className="tabular-nums">
-          {active ? `${formatBytes(transfer.speed)}/s` : "—"}
+          {active ? `${formatBytes(transfer.speed)}/s` : "-"}
         </span>
       </div>
     </motion.div>

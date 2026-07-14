@@ -124,7 +124,7 @@ export function ShareCard({
           ) : (
             <div className="flex items-center gap-2.5 rounded-lg border border-dashed border-border bg-background/30 px-4 py-5 text-sm text-muted-foreground">
               <Radio className="size-4 opacity-60" />
-              Standing by — no downloads yet on the recipient's side.
+              Standing by - no downloads yet on the recipient's side.
             </div>
           )}
         </div>

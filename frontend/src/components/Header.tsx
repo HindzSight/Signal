@@ -35,7 +35,7 @@ export function Header({
             Signal
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Beam a folder straight from this machine — no uploads, no middle-man.
+            Beam a folder straight from this machine - no uploads, no middle-man.
           </p>
         </div>
       </div>

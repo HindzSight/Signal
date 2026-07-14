@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The SIGNAL beacon: a core that emits three broadcast arcs, each fading and
- * expanding on a stagger — a folder transmitting across the ocean.
+ * expanding on a stagger - a folder transmitting across the ocean.
  */
 export function BeaconMark({ className }: { className?: string }) {
   return (

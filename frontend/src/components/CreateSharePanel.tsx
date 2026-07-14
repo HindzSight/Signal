@@ -37,7 +37,7 @@ export function CreateSharePanel() {
       else toast.info("No folder selected.");
     } catch (error) {
       toast.error("Folder picker unavailable", {
-        description: (error as Error).message + " — you can also paste a path.",
+        description: (error as Error).message + " - you can also paste a path.",
       });
     } finally {
       setBrowsing(false);
