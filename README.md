@@ -8,6 +8,16 @@ directly off your disk while the tunnel is open.
 > 📖 **Just want to run it?** See **[RUNNING.md](RUNNING.md)** for a step-by-step
 > local setup guide.
 
+## Screenshots
+
+| Sender dashboard | Recipient page |
+|---|---|
+| ![Signal homepage](docs/screenshots/homepage.png) | ![Recipient file browser](docs/screenshots/receiver.png) |
+
+Recipients can also select multiple files (or a whole folder) and download them all at once:
+
+![Multi-select download on the recipient page](docs/screenshots/receiver-select.png)
+
 ## How it works
 
 - A local **Node HTTP server** (`src/`) spawns `cloudflared`, opens the native OS
