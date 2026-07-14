@@ -1,0 +1,230 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  SIGNAL — a beacon across the ocean.
+  A warm-ink transmission instrument: deep charcoal with a warm undertone,
+  a single dominant signal-amber accent, and monospace telemetry readouts.
+*/
+
+:root {
+  --radius: 0.7rem;
+
+  /* Light "daylight beacon" fallback theme */
+  --background: #f6f1e8;
+  --foreground: #211b12;
+  --card: #fffdf8;
+  --card-foreground: #211b12;
+  --popover: #fffdf8;
+  --popover-foreground: #211b12;
+  --primary: #e2560d;
+  --primary-foreground: #fff8f1;
+  --secondary: #efe6d6;
+  --secondary-foreground: #3a3125;
+  --muted: #efe6d6;
+  --muted-foreground: #7c6f5c;
+  --accent: #f2e7d4;
+  --accent-foreground: #3a3125;
+  --destructive: #d23a30;
+  --destructive-foreground: #fff8f1;
+  --border: #e2d6c1;
+  --input: #ded1ba;
+  --ring: #e2560d;
+
+  --signal: #ff7a29;
+  --signal-glow: #ff9a3d;
+  --online: #12946a;
+  --grid-line: #00000008;
+}
+
+.dark {
+  /* Warm ink cockpit — the primary theme */
+  --background: #14110d;
+  --foreground: #f3ece0;
+  --card: #1d1913;
+  --card-foreground: #f3ece0;
+  --popover: #221d16;
+  --popover-foreground: #f3ece0;
+  --primary: #ff7a29;
+  --primary-foreground: #17120c;
+  --secondary: #2a2318;
+  --secondary-foreground: #ece3d3;
+  --muted: #241f17;
+  --muted-foreground: #a89a83;
+  --accent: #2c2418;
+  --accent-foreground: #f3ece0;
+  --destructive: #ff5b4e;
+  --destructive-foreground: #17120c;
+  --border: #332b1f;
+  --input: #3a3123;
+  --ring: #ff7a29;
+
+  --signal: #ff7a29;
+  --signal-glow: #ffab52;
+  --online: #64dfa2;
+  --grid-line: #ffffff07;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-signal: var(--signal);
+  --color-signal-glow: var(--signal-glow);
+  --color-online: var(--online);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  ::selection {
+    background: var(--signal);
+    color: var(--primary-foreground);
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ---- Atmosphere: the beacon environment ---- */
+
+/* Fine warm grain over everything for a tactile, instrument-panel surface. */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Hairline engineering grid, fading toward the edges. */
+.grid-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 78%);
+}
+
+/* The beacon: a warm amber halo bleeding down from the top. */
+.beacon-glow {
+  position: fixed;
+  top: -340px;
+  left: 50%;
+  translate: -50% 0;
+  width: 900px;
+  height: 640px;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in oklab, var(--signal) 26%, transparent) 0%,
+    color-mix(in oklab, var(--signal) 9%, transparent) 34%,
+    transparent 66%
+  );
+  filter: blur(12px);
+  animation: beacon-breathe 7s ease-in-out infinite;
+}
+
+@keyframes beacon-breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+@keyframes signal-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--online) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.pulse-dot {
+  animation: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Meter shimmer that travels along an active progress bar. */
+.meter-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, #fff 55%, transparent),
+    transparent
+  );
+  animation: signal-sweep 1.8s ease-in-out infinite;
+}
+
+/* Custom scrollbar tuned to the warm palette. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 3px solid var(--background);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
