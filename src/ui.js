@@ -25,6 +25,7 @@ const bytes = value => {
   return (unit === 0 ? number.toFixed(0) : number.toFixed(number >= 100 ? 0 : 1)) + ' ' + units[unit];
 };
 const fileHref = path => '/s/' + SHARE.id + '/file/' + path.split('/').map(encodeURIComponent).join('/');
+const zipHref = paths => '/s/' + SHARE.id + '/zip' + (paths ? '?paths=' + encodeURIComponent(JSON.stringify(paths)) : '');
 
 function tree(items) {
   return '<ul class="file-tree">' + items.map(item => {
@@ -38,6 +39,9 @@ function tree(items) {
 
 function wireBrowser(hasFiles) {
   if (!hasFiles) return;
+  document.querySelector('#download-all').addEventListener('click', () => {
+    window.location.href = zipHref();
+  });
   const panel = document.querySelector('#file-panel');
   const toggleBtn = document.querySelector('#select-toggle');
   const actions = document.querySelector('#select-actions');
@@ -88,22 +92,14 @@ function wireBrowser(hasFiles) {
     updateState();
   });
 
-  downloadBtn.addEventListener('click', async () => {
+  downloadBtn.addEventListener('click', () => {
     const paths = fileChecks().filter(c => c.checked).map(c => c.dataset.path);
     if (!paths.length) return;
-    downloadBtn.disabled = true;
-    const original = downloadBtn.textContent;
-    for (const path of paths) {
-      const link = document.createElement('a');
-      link.href = fileHref(path);
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      await new Promise(resolve => setTimeout(resolve, 350));
-    }
-    downloadBtn.textContent = original;
-    updateState();
+    // A single zipped download instead of one download per file: browsers
+    // silently block all but the first of several automatic downloads fired
+    // in a row, so looping per-file here used to drop files without any
+    // visible error.
+    window.location.href = zipHref(paths);
   });
 
   updateState();
@@ -113,7 +109,7 @@ fetch('/s/' + SHARE.id + '/tree')
   .then(response => { if (!response.ok) throw Error(); return response.json(); })
   .then(items => {
     root.innerHTML = '<section class="recipient-browser"><header class="recipient-browser-head"><div><p class="eyebrow">SIGNAL &middot; SECURE TRANSFER</p><h1>' + escapeHtml(SHARE.name) + '</h1><p>Choose a file to download from this shared folder.</p></div><span class="recipient-ready">Access granted</span></header>' +
-      (items.length ? '<div class="file-toolbar"><button type="button" class="button secondary compact" id="select-toggle">Select files</button><div class="file-toolbar-actions" id="select-actions" hidden><span id="select-count" class="muted">0 selected</span><button type="button" class="button secondary compact" id="select-all">Select all</button><button type="button" class="button primary compact" id="download-selected" disabled>Download selected</button></div></div>' : '') +
+      (items.length ? '<div class="file-toolbar"><button type="button" class="button primary compact" id="download-all">Download all (.zip)</button><div class="file-toolbar-group"><button type="button" class="button secondary compact" id="select-toggle">Select files</button><div class="file-toolbar-actions" id="select-actions" hidden><span id="select-count" class="muted">0 selected</span><button type="button" class="button secondary compact" id="select-all">Select all</button><button type="button" class="button primary compact" id="download-selected" disabled>Download selected (.zip)</button></div></div></div>' : '') +
       '<div class="file-panel" id="file-panel">' + (items.length ? tree(items) : '<div class="empty">This folder is empty.</div>') + '</div></section>';
     wireBrowser(items.length > 0);
   })
@@ -156,6 +152,7 @@ export const RECIPIENT_UI_STYLE = `
 .recipient-ready{display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in oklab,var(--online) 35%,transparent);background:color-mix(in oklab,var(--online) 12%,transparent);color:var(--online);padding:6px 12px;border-radius:999px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
 .recipient-ready::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--online);box-shadow:0 0 8px var(--online)}
 .file-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.file-toolbar-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .file-toolbar-actions{display:flex;align-items:center;gap:10px}
 .file-toolbar-actions[hidden]{display:none}
 .file-panel{padding:14px 16px 22px;max-height:62vh;overflow:auto}

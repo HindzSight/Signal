@@ -10,5 +10,10 @@
     "dev:ui": "npm --prefix frontend run dev",
     "test": "node --test"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "yazl": "^3.3.1"
+  }
 }

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
+import { ZipFile } from 'yazl';
 import { pickDirectory } from './folder-picker.js';
 import { DASHBOARD_RUNTIME_JS, MODERN_DASHBOARD, MODERN_STYLE, PUBLIC_RECIPIENT_JS, RECIPIENT_UI_STYLE, SHADCN_THEME_STYLE, TRANSFER_UI_STYLE, UI_OVERRIDES } from './ui.js';
 
@@ -99,6 +100,19 @@ async function folderTree(share, directory = share.root, prefix = '') {
   return items;
 }
 
+// Flat leaf-file listing used to build a "whole folder" zip. Mirrors folderTree's
+// symlink-skipping walk but returns {relative, absolute, size} instead of a tree.
+async function collectFiles(directory, prefix = '') {
+  const entries = await fsp.readdir(directory, { withFileTypes: true }); let files = [];
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.isSymbolicLink()) continue;
+    const absolute = path.join(directory, entry.name); const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) files = files.concat(await collectFiles(absolute, relative));
+    else if (entry.isFile()) { const info = await fsp.stat(absolute); files.push({ relative, absolute, size: info.size }); }
+  }
+  return files;
+}
+
 function recipientPage(share, authenticated, error = '') {
   const data = authenticated
     ? `<script>window.SHARE=${JSON.stringify({ id: share.id, name: share.name })}</script><script type="module" src="/public-recipient.js"></script>`
@@ -139,7 +153,8 @@ export function createServer(options = {}) {
       if (rest === 'auth' && req.method === 'POST') { const raw = await new Promise(resolve => { let d = ''; req.on('data', c => d += c); req.on('end', () => resolve(new URLSearchParams(d))); }); if (!verifyPasscode(raw.get('passcode') || '', share.passcodeHash)) return html(res, 401, recipientPage(share, false, 'Incorrect passcode. Please try again.')); const token = manager.signedSession(share.id); res.writeHead(303, { location: `/s/${share.id}`, 'set-cookie': `share_${share.id}=${token}; Path=/s/${share.id}; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}` }); return res.end(); }
       if (!authed) return text(res, 401, 'Passcode required');
       if (rest === 'tree' && req.method === 'GET') return json(res, 200, await folderTree(share));
-      if (rest.startsWith('file/') && (req.method === 'GET' || req.method === 'HEAD')) return streamFile(req, res, share, decodeURIComponent(rest.slice(5)), manager);
+      if (rest.startsWith('file/') && (req.method === 'GET' || req.method === 'HEAD')) return await streamFile(req, res, share, decodeURIComponent(rest.slice(5)), manager);
+      if (rest === 'zip' && req.method === 'GET') return await streamZip(res, share, url.searchParams.get('paths'), manager);
       return text(res, 404, 'Not found');
     } catch (error) { if (error.code === 'ENOENT') return text(res, 404, 'File not found'); console.error(error); return json(res, 400, { error: error.message || 'Request failed' }); }
   });
@@ -165,4 +180,54 @@ async function streamFile(req, res, share, relative, manager) {
   const finish = state => { if (settled) return; settled = true; transfer.status = state; transfer.percent = Math.min(100, Math.round((transfer.bytesSent / length) * 100)); manager.updateTransfer(share, transfer); };
   source.on('data', chunk => { if (settled) return; transfer.bytesSent += chunk.length; transfer.percent = Math.min(100, Math.round((transfer.bytesSent / length) * 100)); transfer.speed = Math.round(transfer.bytesSent / Math.max(1, (Date.now() - transfer.startedAt) / 1000)); manager.updateTransfer(share, transfer); });
   source.on('end', () => finish('completed')); source.on('error', () => finish('cancelled')); res.on('close', () => { if (!settled && transfer.bytesSent < length) source.destroy(); finish(transfer.bytesSent >= length ? 'completed' : 'cancelled'); }); source.pipe(res);
+}
+
+// Bundles the requested files (or the whole share, if pathsParam is empty) into a
+// single streamed ZIP. A single archive is one HTTP request and one browser
+// download, which sidesteps the "multiple automatic downloads" block that
+// silently drops all but the first file when several are downloaded individually
+// in a row without their own user gesture.
+async function streamZip(res, share, pathsParam, manager) {
+  let entries;
+  if (pathsParam) {
+    let requested;
+    try { requested = JSON.parse(pathsParam); } catch { return json(res, 400, { error: 'Invalid paths parameter' }); }
+    if (!Array.isArray(requested) || requested.some(p => typeof p !== 'string') || requested.length === 0) return json(res, 400, { error: 'Invalid paths parameter' });
+    entries = [];
+    for (const relative of requested) {
+      const absolute = await resolveSharedFile(share, relative);
+      const stat = await fsp.stat(absolute);
+      if (stat.isFile()) entries.push({ relative, absolute, size: stat.size });
+    }
+  } else {
+    entries = await collectFiles(share.root);
+  }
+  if (!entries.length) return text(res, 404, 'No files to download');
+
+  const zipName = `${share.name}.zip`;
+  const totalSize = entries.reduce((sum, e) => sum + e.size, 0);
+  const transfer = { id: randomBytes(9).toString('base64url'), file: zipName, size: totalSize, bytesSent: 0, percent: 0, speed: 0, status: 'active', startedAt: Date.now() };
+  manager.addTransfer(share, transfer);
+  let settled = false;
+  const finish = state => { if (settled) return; settled = true; transfer.status = state; if (state === 'completed') transfer.percent = 100; manager.updateTransfer(share, transfer); };
+
+  const zipfile = new ZipFile();
+  for (const entry of entries) zipfile.addFile(entry.absolute, entry.relative, { compress: false });
+
+  zipfile.end({}, calculatedTotalSize => {
+    const headers = { 'content-type': 'application/zip', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`, 'cache-control': 'no-store' };
+    if (calculatedTotalSize >= 0) { headers['content-length'] = calculatedTotalSize; transfer.size = calculatedTotalSize; }
+    res.writeHead(200, headers);
+    zipfile.outputStream.on('data', chunk => {
+      if (settled) return;
+      transfer.bytesSent += chunk.length;
+      transfer.percent = transfer.size > 0 ? Math.min(99, Math.round((transfer.bytesSent / transfer.size) * 100)) : 0;
+      transfer.speed = Math.round(transfer.bytesSent / Math.max(1, (Date.now() - transfer.startedAt) / 1000));
+      manager.updateTransfer(share, transfer);
+    });
+    zipfile.outputStream.on('end', () => finish('completed'));
+    zipfile.outputStream.on('error', () => finish('cancelled'));
+    res.on('close', () => finish(transfer.bytesSent >= transfer.size ? 'completed' : 'cancelled'));
+    zipfile.outputStream.pipe(res);
+  });
 }
