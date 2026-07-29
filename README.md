@@ -41,9 +41,13 @@ Signal also ships as a native Electron app with `cloudflared` bundled inside,
 so there's nothing separate to install - download, open, choose a folder.
 
 - **Download**: grab the latest installer from the
-  [Releases page](https://github.com/HindzSight/Signal/releases) -
-  `Signal-x.y.z.dmg` (or `-arm64.dmg` on Apple Silicon) for Mac,
-  `Signal Setup x.y.z.exe` for Windows.
+  [Releases page](https://github.com/HindzSight/Signal/releases):
+  - **Mac, Apple Silicon (M1/M2/M3/M4/M5)**: `Signal-x.y.z-arm64.dmg`
+  - **Mac, Intel**: `Signal-x.y.z.dmg` (no `arm64` in the name)
+  - **Windows**: `Signal Setup x.y.z.exe`
+
+  Picking the wrong Mac build still works via Rosetta 2 translation, just
+  slower - use the `arm64` one if you're on an M-series chip.
 - **Unsigned builds**: these aren't code-signed (no Apple/Windows developer
   certificate), so the OS will warn on first launch. On Mac: right-click the
   app > **Open** > **Open** again. On Windows: **More info** > **Run anyway**
