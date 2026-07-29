@@ -1,17 +1,19 @@
 name: Release desktop builds
 
 # Push a version tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`) to build
-# the Mac and Windows installers and publish them to the matching GitHub
-# Release. Each platform builds on its own native runner: this app has no
-# native Node addons, so cross-arch builds (mac x64 + arm64) work fine from a
-# single macOS runner without needing separate hardware per architecture.
+# the Mac and Windows installers and publish them to a GitHub Release.
 #
-# The two jobs run sequentially (windows needs mac), not in parallel: when
-# neither job has created the release yet, electron-builder's GitHub publish
-# step will happily let two concurrent jobs both try to create it, producing
-# two separate draft releases with the split assets instead of one. Running
-# them one after another means the second job finds the release the first
-# one already created and appends to it.
+# electron-builder's own "--publish" flow is NOT used here: when no release
+# exists yet for a tag, it creates one - and if two platform jobs both hit
+# that at once (or even one after another, in practice), each can end up
+# creating its own separate draft release with the same tag name, since
+# GitHub allows multiple drafts to share a tag until one is actually
+# published. That produced two split releases the first time this ran.
+#
+# Instead: one job creates the (draft) release exactly once, both platform
+# jobs build and upload their own installers to that specific release via
+# `gh release upload`, and a final job only flips it to public once both
+# uploads have succeeded - so nothing incomplete is ever visible publicly.
 on:
   push:
     tags:
@@ -21,7 +23,19 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release for this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+          gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" \
+            --draft --title "${{ github.ref_name }}" --generate-notes
+
   mac:
+    needs: create-release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,12 +45,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/fetch-cloudflared.mjs darwin-x64 darwin-arm64
-      - run: npx electron-builder --mac --publish always
+      - run: npx electron-builder --mac
+      - name: Upload installers to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber release/*.dmg release/*.zip
 
   windows:
-    needs: mac
+    needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +62,22 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/fetch-cloudflared.mjs win32-x64
-      - run: npx electron-builder --win --publish always
+      - run: npx electron-builder --win
+      - name: Upload installer to the release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # windows-latest's default shell doesn't glob-expand args to external
+        # commands the way bash does, so resolve the file path explicitly.
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "Signal Setup*.exe" | Select-Object -First 1 -ExpandProperty FullName
+          gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $installer
+
+  publish-release:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release now that both installers are attached
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
