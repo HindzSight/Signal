@@ -45,7 +45,10 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/fetch-cloudflared.mjs darwin-x64 darwin-arm64
-      - run: npx electron-builder --mac
+      # electron-builder auto-detects CI and otherwise tries to publish itself
+      # (and fails without a token, since gh release upload handles that here
+      # instead) - --publish never turns that implicit behavior off.
+      - run: npx electron-builder --mac --publish never
       - name: Upload installers to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -62,7 +65,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/fetch-cloudflared.mjs win32-x64
-      - run: npx electron-builder --win
+      - run: npx electron-builder --win --publish never
       - name: Upload installer to the release
         shell: pwsh
         env:
