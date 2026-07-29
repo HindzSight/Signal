@@ -28,11 +28,39 @@ Recipients can also select multiple files (or a whole folder) and download them 
   theme. The Node server serves the built app to you locally; your recipients
   only ever see the server-rendered `/s/<id>` share pages through the tunnel.
 
+## Desktop app (Mac / Windows)
+
+Signal also ships as a native Electron app with `cloudflared` bundled inside,
+so there's nothing separate to install - download, open, choose a folder.
+
+- **Download**: grab the latest installer from the
+  [Releases page](https://github.com/HindzSight/Signal/releases) -
+  `Signal-x.y.z.dmg` (or `-arm64.dmg` on Apple Silicon) for Mac,
+  `Signal Setup x.y.z.exe` for Windows.
+- **Unsigned builds**: these aren't code-signed (no Apple/Windows developer
+  certificate), so the OS will warn on first launch. On Mac: right-click the
+  app > **Open** > **Open** again. On Windows: **More info** > **Run anyway**
+  on the SmartScreen prompt. This is a one-time step per machine.
+- **Build it yourself** instead of downloading:
+  ```bash
+  npm ci
+  npm run icons                                    # only needed once, or after changing build/icon.png
+  node scripts/fetch-cloudflared.mjs win32-x64      # or: darwin-x64 darwin-arm64
+  npm run electron:build:win                        # or: npm run electron:build:mac
+  ```
+  Installers land in `release/`.
+- **Cutting a release**: push a version tag and GitHub Actions builds both
+  platforms and attaches them to a new Release automatically -
+  see [`.github/workflows/release.yml`](.github/workflows/release.yml).
+  ```bash
+  git tag v0.2.0 && git push origin v0.2.0
+  ```
+
 ## Requirements
 
 - Node.js 20+
 - [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-  installed and available on `PATH`
+  installed and available on `PATH` (not needed for the desktop app above, which bundles it)
 
 ## Run
 

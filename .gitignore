@@ -2,3 +2,6 @@ node_modules/
 .env
 coverage/
 frontend/dist/
+electron/resources/
+dist-electron/
+release/

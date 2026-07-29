@@ -1,0 +1,43 @@
+name: Release desktop builds
+
+# Push a version tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`) to build
+# the Mac and Windows installers and publish them to the matching GitHub
+# Release. Each platform builds on its own native runner: this app has no
+# native Node addons, so cross-arch builds (mac x64 + arm64) work fine from a
+# single macOS runner without needing separate hardware per architecture.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/fetch-cloudflared.mjs darwin-x64 darwin-arm64
+      - run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/fetch-cloudflared.mjs win32-x64
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

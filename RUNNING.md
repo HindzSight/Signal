@@ -3,6 +3,12 @@
 A step-by-step guide to running the Folder Share dashboard on your own machine.
 Commands are shown for both **Windows PowerShell** and **macOS/Linux (bash/zsh)**.
 
+> **Don't want to touch a terminal at all?** Download the installer from the
+> [Releases page](https://github.com/HindzSight/Signal/releases) instead - it's
+> a normal Mac/Windows app with `cloudflared` already bundled in. See the
+> [README's Desktop app section](README.md#desktop-app-mac--windows) for details.
+> The rest of this guide covers running the project from source.
+
 ---
 
 ## 1. Prerequisites

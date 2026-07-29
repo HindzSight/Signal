@@ -3,17 +3,64 @@
   "version": "0.1.0",
   "private": true,
   "description": "Secure, temporary folder sharing through Cloudflare Quick Tunnels.",
+  "author": "Manan Jain",
+  "repository": "HindzSight/Signal",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node src/index.js",
     "build": "npm --prefix frontend install && npm --prefix frontend run build",
     "dev:ui": "npm --prefix frontend run dev",
-    "test": "node --test"
+    "test": "node --test",
+    "icons": "node scripts/generate-icons.mjs",
+    "electron:dev": "electron .",
+    "electron:build:mac": "npm run build && node scripts/fetch-cloudflared.mjs darwin-x64 darwin-arm64 && electron-builder --mac",
+    "electron:build:win": "npm run build && node scripts/fetch-cloudflared.mjs win32-x64 && electron-builder --win"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "yazl": "^3.3.1"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "png2icons": "^2.0.1",
+    "pngjs": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.signal.foldershare",
+    "productName": "Signal",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/main.js",
+      "src/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "afterPack": "electron/afterPack.cjs",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github"
+    }
   }
 }
