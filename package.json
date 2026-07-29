@@ -4,6 +4,7 @@
   "private": true,
   "description": "Secure, temporary folder sharing through Cloudflare Quick Tunnels.",
   "author": "Manan Jain",
+  "license": "MIT",
   "repository": "HindzSight/Signal",
   "type": "module",
   "main": "electron/main.js",

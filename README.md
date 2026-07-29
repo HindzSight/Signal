@@ -1,9 +1,16 @@
 # Signal - Folder Share Dashboard
 
+[![Latest release](https://img.shields.io/github/v/release/HindzSight/Signal?label=latest%20release)](https://github.com/HindzSight/Signal/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Beam a folder straight from your computer to anyone, through a temporary,
 passcode-protected Cloudflare Quick Tunnel - and watch their downloads in real
 time. Files are never uploaded to this app or any storage provider; they stream
 directly off your disk while the tunnel is open.
+
+Signal is free and open source. **[Download the desktop app](https://github.com/HindzSight/Signal/releases/latest)**
+for Mac or Windows and start sharing in a minute - no separate `cloudflared`
+install needed, it's bundled in.
 
 > 📖 **Just want to run it?** See **[RUNNING.md](RUNNING.md)** for a step-by-step
 > local setup guide.
@@ -119,3 +126,13 @@ npm.cmd test    # Windows (PowerShell)
 ```bash
 npm test        # macOS / Linux
 ```
+
+## Contributing
+
+Bug reports, feature ideas, and PRs are welcome - see
+[CONTRIBUTING.md](CONTRIBUTING.md) for how the project is laid out, coding
+conventions, and what to check before opening a PR.
+
+## License
+
+[MIT](LICENSE) - © 2026 Manan Jain

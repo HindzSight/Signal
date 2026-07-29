@@ -5,6 +5,13 @@ name: Release desktop builds
 # Release. Each platform builds on its own native runner: this app has no
 # native Node addons, so cross-arch builds (mac x64 + arm64) work fine from a
 # single macOS runner without needing separate hardware per architecture.
+#
+# The two jobs run sequentially (windows needs mac), not in parallel: when
+# neither job has created the release yet, electron-builder's GitHub publish
+# step will happily let two concurrent jobs both try to create it, producing
+# two separate draft releases with the split assets instead of one. Running
+# them one after another means the second job finds the release the first
+# one already created and appends to it.
 on:
   push:
     tags:
@@ -29,6 +36,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   windows:
+    needs: mac
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
