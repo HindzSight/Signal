@@ -5,3 +5,4 @@ frontend/dist/
 electron/resources/
 dist-electron/
 release/
+release-*/
