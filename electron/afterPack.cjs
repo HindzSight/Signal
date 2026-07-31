@@ -13,8 +13,8 @@ const { Arch } = require('builder-util');
 
 module.exports = async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
-  const platformKey = electronPlatformName === 'darwin' ? 'darwin' : electronPlatformName === 'win32' ? 'win32' : null;
-  if (!platformKey) return; // only mac and windows are bundled
+  const platformKey = ['darwin', 'win32', 'linux'].includes(electronPlatformName) ? electronPlatformName : null;
+  if (!platformKey) return; // only mac, windows, and linux are bundled
 
   const archName = Arch[arch];
   const binaryName = platformKey === 'win32' ? 'cloudflared.exe' : 'cloudflared';
@@ -23,6 +23,9 @@ module.exports = async function afterPack(context) {
     throw new Error(`Missing bundled cloudflared binary at ${source}. Run "node scripts/fetch-cloudflared.mjs ${platformKey}-${archName}" first.`);
   }
 
+  // Mac apps nest resources inside the .app bundle; Windows and Linux both use
+  // a flat "resources" folder next to the executable in the unpacked output
+  // (electron-builder wraps the Linux one into an AppImage afterwards).
   const destDir = platformKey === 'darwin'
     ? path.join(appOutDir, `${packager.appInfo.productFilename}.app`, 'Contents', 'Resources')
     : path.join(appOutDir, 'resources');

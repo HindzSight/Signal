@@ -35,7 +35,7 @@ Recipients can also select multiple files (or a whole folder) and download them 
   theme. The Node server serves the built app to you locally; your recipients
   only ever see the server-rendered `/s/<id>` share pages through the tunnel.
 
-## Desktop app (Mac / Windows)
+## Desktop app (Mac / Windows / Linux)
 
 Signal also ships as a native Electron app with `cloudflared` bundled inside,
 so there's nothing separate to install - download, open, choose a folder.
@@ -45,23 +45,36 @@ so there's nothing separate to install - download, open, choose a folder.
   - **Mac, Apple Silicon (M1/M2/M3/M4/M5)**: `Signal-x.y.z-arm64.dmg`
   - **Mac, Intel**: `Signal-x.y.z.dmg` (no `arm64` in the name)
   - **Windows**: `Signal Setup x.y.z.exe`
+  - **Linux**: `Signal-x.y.z.AppImage` - `chmod +x` it, then run it directly;
+    no installation step needed.
 
   Picking the wrong Mac build still works via Rosetta 2 translation, just
   slower - use the `arm64` one if you're on an M-series chip.
 - **Unsigned builds**: these aren't code-signed (no Apple/Windows developer
-  certificate), so the OS will warn on first launch. On Mac: right-click the
-  app > **Open** > **Open** again. On Windows: **More info** > **Run anyway**
-  on the SmartScreen prompt. This is a one-time step per machine.
+  certificate), so the OS will warn on first launch.
+  - **Windows**: SmartScreen shows "unknown publisher" - click **More info** >
+    **Run anyway**.
+  - **Mac**: right-click the app > **Open** > **Open** again. If macOS instead
+    says *"Signal" is damaged and can't be opened* - this is Gatekeeper being
+    stricter about unsigned Apple Silicon builds than the older "unidentified
+    developer" prompt, not an actually corrupted download. Open Terminal and run:
+    ```bash
+    xattr -cr /Applications/Signal.app
+    ```
+    (or wherever you moved the app), then open it again. This strips the
+    quarantine flag the browser attached to the download.
+
+  This is a one-time step per machine.
 - **Build it yourself** instead of downloading:
   ```bash
   npm ci
-  npm run icons                                    # only needed once, or after changing build/icon.png
-  node scripts/fetch-cloudflared.mjs win32-x64      # or: darwin-x64 darwin-arm64
-  npm run electron:build:win                        # or: npm run electron:build:mac
+  npm run icons                                       # only needed once, or after changing build/icon.png
+  node scripts/fetch-cloudflared.mjs win32-x64         # or: darwin-x64 darwin-arm64 / linux-x64
+  npm run electron:build:win                           # or: electron:build:mac / electron:build:linux
   ```
   Installers land in `release/`.
-- **Cutting a release**: push a version tag and GitHub Actions builds both
-  platforms and attaches them to a new Release automatically -
+- **Cutting a release**: push a version tag and GitHub Actions builds all
+  three platforms and attaches them to a new Release automatically -
   see [`.github/workflows/release.yml`](.github/workflows/release.yml).
   ```bash
   git tag v0.2.0 && git push origin v0.2.0

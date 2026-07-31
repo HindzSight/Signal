@@ -1,7 +1,7 @@
 name: Release desktop builds
 
 # Push a version tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`) to build
-# the Mac and Windows installers and publish them to a GitHub Release.
+# the Mac, Windows, and Linux installers and publish them to a GitHub Release.
 #
 # electron-builder's own "--publish" flow is NOT used here: when no release
 # exists yet for a tag, it creates one - and if two platform jobs both hit
@@ -76,8 +76,25 @@ jobs:
           $installer = Get-ChildItem -Path release -Filter "Signal Setup*.exe" | Select-Object -First 1 -ExpandProperty FullName
           gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $installer
 
+  linux:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/fetch-cloudflared.mjs linux-x64
+      - run: npx electron-builder --linux --publish never
+      - name: Upload installer to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber release/*.AppImage
+
   publish-release:
-    needs: [mac, windows]
+    needs: [mac, windows, linux]
     runs-on: ubuntu-latest
     steps:
       - name: Publish the release now that both installers are attached

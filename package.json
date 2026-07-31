@@ -1,6 +1,6 @@
 {
   "name": "signal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Secure, temporary folder sharing through Cloudflare Quick Tunnels.",
   "author": "Manan Jain",
@@ -16,7 +16,8 @@
     "icons": "node scripts/generate-icons.mjs",
     "electron:dev": "electron .",
     "electron:build:mac": "npm run build && node scripts/fetch-cloudflared.mjs darwin-x64 darwin-arm64 && electron-builder --mac",
-    "electron:build:win": "npm run build && node scripts/fetch-cloudflared.mjs win32-x64 && electron-builder --win"
+    "electron:build:win": "npm run build && node scripts/fetch-cloudflared.mjs win32-x64 && electron-builder --win",
+    "electron:build:linux": "npm run build && node scripts/fetch-cloudflared.mjs linux-x64 && electron-builder --linux"
   },
   "engines": {
     "node": ">=20"
@@ -50,11 +51,18 @@
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] },
         { "target": "zip", "arch": ["x64", "arm64"] }
-      ]
+      ],
+      "identity": "-",
+      "hardenedRuntime": false
     },
     "win": {
       "icon": "build/icon.ico",
       "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "target": [{ "target": "AppImage", "arch": ["x64"] }]
     },
     "nsis": {
       "oneClick": false,

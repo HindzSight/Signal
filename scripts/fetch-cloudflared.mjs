@@ -2,8 +2,8 @@
 // recipients never need to install cloudflared themselves. Pulls the latest
 // release from Cloudflare's GitHub repo via its stable "latest" permalink.
 //
-// Usage: node scripts/fetch-cloudflared.mjs [win32-x64] [darwin-x64] [darwin-arm64]
-// With no arguments, fetches all three.
+// Usage: node scripts/fetch-cloudflared.mjs [win32-x64] [darwin-x64] [darwin-arm64] [linux-x64]
+// With no arguments, fetches all of them.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -20,6 +20,7 @@ const TARGETS = {
   'win32-x64': { asset: 'cloudflared-windows-amd64.exe', kind: 'exe', binaryName: 'cloudflared.exe' },
   'darwin-x64': { asset: 'cloudflared-darwin-amd64.tgz', kind: 'tgz', binaryName: 'cloudflared' },
   'darwin-arm64': { asset: 'cloudflared-darwin-arm64.tgz', kind: 'tgz', binaryName: 'cloudflared' },
+  'linux-x64': { asset: 'cloudflared-linux-amd64', kind: 'bin', binaryName: 'cloudflared' },
 };
 
 async function download(url, destFile) {
@@ -38,6 +39,9 @@ async function fetchTarget(name) {
 
   if (target.kind === 'exe') {
     await download(`${LATEST_BASE}/${target.asset}`, finalPath);
+  } else if (target.kind === 'bin') {
+    await download(`${LATEST_BASE}/${target.asset}`, finalPath);
+    await fsp.chmod(finalPath, 0o755);
   } else {
     const tgzPath = path.join(dir, target.asset);
     await download(`${LATEST_BASE}/${target.asset}`, tgzPath);
