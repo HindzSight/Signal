@@ -87,6 +87,34 @@ test('the zip endpoint bundles a whole folder or an explicit file selection into
   await fs.rm(folder, { recursive: true, force: true });
 });
 
+test('the zip endpoint can bundle a whole subfolder passed as a single directory path', async () => {
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'folder-share-'));
+  await fs.mkdir(path.join(folder, 'Season 1'));
+  await fs.writeFile(path.join(folder, 'Season 1', 'ep1.txt'), 'episode one');
+  await fs.writeFile(path.join(folder, 'Season 1', 'ep2.txt'), 'episode two');
+  await fs.writeFile(path.join(folder, 'readme.txt'), 'top level file');
+  const { app, share, port, cookie } = await startTestShare(folder);
+
+  // Pass the directory itself, not its files.
+  const subfolder = await fetch(`http://127.0.0.1:${port}/s/${share.id}/zip?paths=${encodeURIComponent(JSON.stringify(['Season 1']))}`, { headers: { cookie } });
+  assert.equal(subfolder.status, 200);
+  const bytes = Buffer.from(await subfolder.arrayBuffer());
+  assert.equal(bytes.subarray(0, 2).toString(), 'PK');
+  // Contains both nested files but excludes the top-level readme.
+  assert.ok(bytes.includes(Buffer.from('episode one')));
+  assert.ok(bytes.includes(Buffer.from('episode two')));
+  assert.equal(bytes.includes(Buffer.from('top level file')), false);
+
+  // Overlapping selection (folder + one of its files) is de-duplicated, not doubled.
+  const overlap = await fetch(`http://127.0.0.1:${port}/s/${share.id}/zip?paths=${encodeURIComponent(JSON.stringify(['Season 1', 'Season 1/ep1.txt']))}`, { headers: { cookie } });
+  assert.equal(overlap.status, 200);
+  const overlapBytes = Buffer.from(await overlap.arrayBuffer());
+  assert.equal(overlapBytes.length, bytes.length);
+
+  await app.close();
+  await fs.rm(folder, { recursive: true, force: true });
+});
+
 test('a path-traversal attempt on /zip or /file is rejected without crashing the server', async () => {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'folder-share-'));
   await fs.writeFile(path.join(folder, 'safe.txt'), 'safe contents');

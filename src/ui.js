@@ -30,7 +30,7 @@ const zipHref = paths => '/s/' + SHARE.id + '/zip' + (paths ? '?paths=' + encode
 function tree(items) {
   return '<ul class="file-tree">' + items.map(item => {
     if (item.type === 'directory') {
-      return '<li class="folder-row"><input type="checkbox" class="row-check folder-check" aria-label="Select all in ' + escapeHtml(item.name) + '"><details open class="folder-details"><summary><span class="file-kind folder-kind">FOLDER</span><b>' + escapeHtml(item.name) + '</b></summary>' + tree(item.children) + '</details></li>';
+      return '<li class="folder-row" data-path="' + escapeHtml(item.path) + '"><input type="checkbox" class="row-check folder-check" aria-label="Select all files in ' + escapeHtml(item.name) + '"><details open class="folder-details"><summary><span class="file-kind folder-kind">FOLDER</span><b>' + escapeHtml(item.name) + '</b><a class="folder-download" href="' + zipHref([item.path]) + '" title="Download this folder as .zip" aria-label="Download folder ' + escapeHtml(item.name) + ' as .zip">&darr;</a></summary>' + tree(item.children) + '</details></li>';
     }
     const href = fileHref(item.path);
     return '<li class="file-row" data-path="' + escapeHtml(item.path) + '"><input type="checkbox" class="row-check" data-path="' + escapeHtml(item.path) + '"><span class="file-kind">FILE</span><a href="' + href + '">' + escapeHtml(item.name) + '</a><span class="file-size">' + bytes(item.size) + '</span><a class="file-download" href="' + href + '" title="Download ' + escapeHtml(item.name) + '" aria-label="Download ' + escapeHtml(item.name) + '">&darr;</a></li>';
@@ -47,7 +47,9 @@ function wireBrowser(hasFiles) {
   const actions = document.querySelector('#select-actions');
   const countEl = document.querySelector('#select-count');
   const downloadBtn = document.querySelector('#download-selected');
+  const downloadFilesBtn = document.querySelector('#download-files');
   const selectAllBtn = document.querySelector('#select-all');
+  const noZipHint = document.querySelector('#no-zip-hint');
   let selecting = false;
 
   const fileChecks = () => Array.from(panel.querySelectorAll('input.row-check[data-path]'));
@@ -57,6 +59,7 @@ function wireBrowser(hasFiles) {
     const checked = checks.filter(c => c.checked);
     countEl.textContent = checked.length + ' selected';
     downloadBtn.disabled = checked.length === 0;
+    downloadFilesBtn.disabled = checked.length === 0;
     panel.querySelectorAll('input.folder-check').forEach(folderCheck => {
       const details = folderCheck.closest('.folder-row').querySelector(':scope > .folder-details');
       const children = Array.from(details.querySelectorAll('input.row-check[data-path]'));
@@ -102,6 +105,29 @@ function wireBrowser(hasFiles) {
     window.location.href = zipHref(paths);
   });
 
+  // "Download files": grab each selected item on its own, no ZIP. One item is a
+  // clean full-gesture navigation. Many items use hidden <a download> anchors
+  // fired on a short stagger; the first runs inside the real click and the rest
+  // ride the browser's download-anchor allowance. Browsers may still cap these,
+  // so we surface the ZIP option as the reliable fallback.
+  downloadFilesBtn.addEventListener('click', () => {
+    const paths = fileChecks().filter(c => c.checked).map(c => c.dataset.path);
+    if (!paths.length) return;
+    if (paths.length === 1) { window.location.href = fileHref(paths[0]); return; }
+    paths.forEach((p, i) => setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = fileHref(p);
+      a.download = '';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, 80 + i * 350));
+    noZipHint.hidden = false;
+    setTimeout(() => { noZipHint.hidden = true; }, 9000);
+  });
+
   updateState();
 }
 
@@ -109,7 +135,7 @@ fetch('/s/' + SHARE.id + '/tree')
   .then(response => { if (!response.ok) throw Error(); return response.json(); })
   .then(items => {
     root.innerHTML = '<section class="recipient-browser"><header class="recipient-browser-head"><div><p class="eyebrow">SIGNAL &middot; SECURE TRANSFER</p><h1>' + escapeHtml(SHARE.name) + '</h1><p>Choose a file to download from this shared folder.</p></div><span class="recipient-ready">Access granted</span></header>' +
-      (items.length ? '<div class="file-toolbar"><button type="button" class="button primary compact" id="download-all">Download all (.zip)</button><div class="file-toolbar-group"><button type="button" class="button secondary compact" id="select-toggle">Select files</button><div class="file-toolbar-actions" id="select-actions" hidden><span id="select-count" class="muted">0 selected</span><button type="button" class="button secondary compact" id="select-all">Select all</button><button type="button" class="button primary compact" id="download-selected" disabled>Download selected (.zip)</button></div></div></div>' : '') +
+      (items.length ? '<div class="file-toolbar"><button type="button" class="button primary compact" id="download-all">Download all (.zip)</button><button type="button" class="button secondary compact" id="select-toggle">Select files</button><div class="file-toolbar-actions" id="select-actions" hidden><span id="select-count" class="muted">0 selected</span><button type="button" class="button secondary compact" id="select-all">Select all</button><button type="button" class="button secondary compact" id="download-files" disabled>Download files</button><button type="button" class="button primary compact" id="download-selected" disabled>Download selected (.zip)</button><p class="no-zip-hint" id="no-zip-hint" hidden>Not seeing every file? Browsers cap rapid simultaneous downloads — use "Download selected (.zip)" to get them all at once, or grab a folder via its &darr; button.</p></div></div>' : '') +
       '<div class="file-panel" id="file-panel">' + (items.length ? tree(items) : '<div class="empty">This folder is empty.</div>') + '</div></section>';
     wireBrowser(items.length > 0);
   })
@@ -151,9 +177,8 @@ export const RECIPIENT_UI_STYLE = `
 .recipient-browser-head p{margin:0;color:var(--muted);font-size:14px}
 .recipient-ready{display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in oklab,var(--online) 35%,transparent);background:color-mix(in oklab,var(--online) 12%,transparent);color:var(--online);padding:6px 12px;border-radius:999px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
 .recipient-ready::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--online);box-shadow:0 0 8px var(--online)}
-.file-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
-.file-toolbar-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.file-toolbar-actions{display:flex;align-items:center;gap:10px}
+.file-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.file-toolbar-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .file-toolbar-actions[hidden]{display:none}
 .file-panel{padding:14px 16px 22px;max-height:62vh;overflow:auto}
 .file-tree{margin:0;padding-left:0;list-style:none}
@@ -176,7 +201,7 @@ details>summary{display:flex;align-items:center;gap:12px;padding:11px 12px;borde
 details>summary:hover{background:#241f16}
 details>summary::-webkit-details-marker{display:none}
 .recipient .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}
-@media(max-width:600px){.recipient-card{padding:26px}.recipient-browser-head{padding:22px;flex-direction:column}.file-panel{padding:10px}.file-toolbar{flex-direction:column;align-items:stretch}.file-toolbar-actions{flex-wrap:wrap}}
+@media(max-width:600px){.recipient-card{padding:26px}.recipient-browser-head{padding:22px;flex-direction:column}.file-panel{padding:10px}.file-toolbar{flex-direction:column;align-items:stretch}.file-toolbar-actions{flex-wrap:wrap;align-items:center}}.folder-download{flex:none;min-width:26px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;margin-left:auto;border-radius:6px;color:var(--primary);text-decoration:none;font-weight:800;opacity:.55;transition:opacity .12s,background .12s}.folder-download:hover,.folder-download:focus-visible{opacity:1;background:color-mix(in oklab,var(--primary) 16%,transparent)}.no-zip-hint{margin:8px 0 0;font-size:12px;line-height:1.4;color:var(--muted);flex-basis:100%;text-align:left}
 `;
 
 export const UI_OVERRIDES = `

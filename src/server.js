@@ -113,6 +113,32 @@ async function collectFiles(directory, prefix = '') {
   return files;
 }
 
+// Expands a requested path into the concrete files to zip. A directory entry is
+// walked (symlink-safe, mirroring collectFiles) so a recipient can grab a whole
+// subfolder by path; a file resolves to itself; anything else is skipped. All
+// checks go through resolveSharedFile so nothing can escape the shared folder.
+async function expandPath(share, relative) {
+  const absolute = await resolveSharedFile(share, relative);
+  const stat = await fsp.stat(absolute);
+  if (stat.isFile()) return [{ relative, absolute, size: stat.size }];
+  if (stat.isDirectory()) {
+    const files = [];
+    await collectInto(absolute, relative, files);
+    return files;
+  }
+  return [];
+}
+
+async function collectInto(directory, prefix, out) {
+  const entries = await fsp.readdir(directory, { withFileTypes: true });
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.isSymbolicLink()) continue;
+    const absolute = path.join(directory, entry.name); const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) await collectInto(absolute, relative, out);
+    else if (entry.isFile()) { const info = await fsp.stat(absolute); out.push({ relative, absolute, size: info.size }); }
+  }
+}
+
 function recipientPage(share, authenticated, error = '') {
   const data = authenticated
     ? `<script>window.SHARE=${JSON.stringify({ id: share.id, name: share.name })}</script><script type="module" src="/public-recipient.js"></script>`
@@ -195,10 +221,11 @@ async function streamZip(res, share, pathsParam, manager) {
     if (!Array.isArray(requested) || requested.some(p => typeof p !== 'string') || requested.length === 0) return json(res, 400, { error: 'Invalid paths parameter' });
     entries = [];
     for (const relative of requested) {
-      const absolute = await resolveSharedFile(share, relative);
-      const stat = await fsp.stat(absolute);
-      if (stat.isFile()) entries.push({ relative, absolute, size: stat.size });
+      for (const entry of await expandPath(share, relative)) entries.push(entry);
     }
+    // De-dupe in case the selection overlaps (e.g. a folder plus files inside it).
+    const seen = new Set();
+    entries = entries.filter(entry => seen.has(entry.absolute) ? false : (seen.add(entry.absolute), true));
   } else {
     entries = await collectFiles(share.root);
   }
