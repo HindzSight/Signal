@@ -30,9 +30,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-          gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" \
-            --draft --title "${{ github.ref_name }}" --generate-notes
+          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
+          gh release create "${{ github.ref_name }}" --draft --title "${{ github.ref_name }}" --generate-notes
 
   mac:
     needs: create-release
@@ -52,7 +51,7 @@ jobs:
       - name: Upload installers to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber release/*.dmg release/*.zip
+        run: gh release upload "${{ github.ref_name }}" --clobber release/*.dmg release/*.zip
 
   windows:
     needs: create-release
@@ -74,7 +73,7 @@ jobs:
         # commands the way bash does, so resolve the file path explicitly.
         run: |
           $installer = Get-ChildItem -Path release -Filter "Signal Setup*.exe" | Select-Object -First 1 -ExpandProperty FullName
-          gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber $installer
+          gh release upload "${{ github.ref_name }}" --clobber $installer
 
   linux:
     needs: create-release
@@ -91,7 +90,7 @@ jobs:
       - name: Upload installer to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" --repo "${{ github.repository }}" --clobber release/*.AppImage
+        run: gh release upload "${{ github.ref_name }}" --clobber release/*.AppImage
 
   publish-release:
     needs: [mac, windows, linux]
@@ -100,4 +99,4 @@ jobs:
       - name: Publish the release now that both installers are attached
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
+        run: gh release edit "${{ github.ref_name }}" --draft=false

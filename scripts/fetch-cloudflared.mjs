@@ -17,7 +17,7 @@ const RESOURCES_DIR = path.join(__dirname, '..', 'electron', 'resources');
 const LATEST_BASE = 'https://github.com/cloudflare/cloudflared/releases/latest/download';
 
 const TARGETS = {
-  'win32-x64': { asset: 'cloudflared-windows-amd64.exe', kind: 'exe', binaryName: 'cloudflared.exe' },
+  'win32-x64': { asset: 'cloudflared-windows-amd64.exe', kind: 'bin', binaryName: 'cloudflared.exe' },
   'darwin-x64': { asset: 'cloudflared-darwin-amd64.tgz', kind: 'tgz', binaryName: 'cloudflared' },
   'darwin-arm64': { asset: 'cloudflared-darwin-arm64.tgz', kind: 'tgz', binaryName: 'cloudflared' },
   'linux-x64': { asset: 'cloudflared-linux-amd64', kind: 'bin', binaryName: 'cloudflared' },
@@ -37,9 +37,9 @@ async function fetchTarget(name) {
   const finalPath = path.join(dir, target.binaryName);
   console.log(`Fetching ${target.asset} -> ${finalPath}`);
 
-  if (target.kind === 'exe') {
-    await download(`${LATEST_BASE}/${target.asset}`, finalPath);
-  } else if (target.kind === 'bin') {
+  if (target.kind === 'bin') {
+    // chmod is a harmless no-op on Windows (it only affects the read-only bit
+    // there), so one path covers both the .exe and the Unix binaries.
     await download(`${LATEST_BASE}/${target.asset}`, finalPath);
     await fsp.chmod(finalPath, 0o755);
   } else {

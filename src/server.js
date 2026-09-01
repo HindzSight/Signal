@@ -7,7 +7,7 @@ import path from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import { ZipFile } from 'yazl';
 import { pickDirectory } from './folder-picker.js';
-import { DASHBOARD_RUNTIME_JS, MODERN_DASHBOARD, MODERN_STYLE, PUBLIC_RECIPIENT_JS, RECIPIENT_UI_STYLE, SHADCN_THEME_STYLE, TRANSFER_UI_STYLE, UI_OVERRIDES } from './ui.js';
+import { MODERN_STYLE, PUBLIC_RECIPIENT_JS, RECIPIENT_UI_STYLE, SHADCN_THEME_STYLE, UI_OVERRIDES } from './ui.js';
 
 const HOURS = 60 * 60 * 1000;
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
@@ -33,7 +33,6 @@ function body(req) { return new Promise((resolve, reject) => { let data = ''; re
 function cookie(req, name) { const found = (req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith(`${name}=`)); return found?.slice(name.length + 1); }
 function localRequest(req) { const host = (req.headers.host || '').split(':')[0].toLowerCase(); return LOCAL_HOSTS.has(host); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
-function encodePath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
 
 export function hashPasscode(passcode, salt = randomBytes(16).toString('base64url')) { return `${salt}:${scryptSync(passcode, salt, 32).toString('base64url')}`; }
 export function verifyPasscode(passcode, stored) { const [salt, hash] = stored.split(':'); const actual = scryptSync(passcode, salt, 32).toString('base64url'); return timingSafeEqual(Buffer.from(actual), Buffer.from(hash)); }
@@ -55,25 +54,25 @@ export async function resolveSharedFile(share, relative) {
 }
 
 export class ShareManager {
-  constructor({ spawnProcess = spawn, exec = execFile, now = () => Date.now(), tunnelTarget = 'http://127.0.0.1:8787' } = {}) { this.shares = new Map(); this.listeners = new Set(); this.spawnProcess = spawnProcess; this.exec = exec; this.now = now; this.secret = randomBytes(32); this.tunnelTarget = tunnelTarget; }
+  constructor({ spawnProcess = spawn, exec = execFile, tunnelTarget = 'http://127.0.0.1:8787' } = {}) { this.shares = new Map(); this.listeners = new Set(); this.spawnProcess = spawnProcess; this.exec = exec; this.secret = randomBytes(32); this.tunnelTarget = tunnelTarget; }
   emit() { const snapshot = this.list(); for (const listener of this.listeners) listener(snapshot); }
   list() { return [...this.shares.values()].map(s => ({ id: s.id, name: s.name, url: s.url, expiresAt: s.expiresAt, status: s.status, transfers: [...s.transfers.values()] })); }
   async cloudflaredAvailable() { return new Promise(resolve => this.exec('cloudflared', ['--version'], { windowsHide: true }, error => resolve(!error))); }
-  signedSession(id) { const expiresAt = this.now() + 12 * HOURS; const payload = `${id}.${expiresAt}.${randomBytes(12).toString('base64url')}`; return `${payload}.${createHmac('sha256', this.secret).update(payload).digest('base64url')}`; }
-  validSession(token, id) { if (!token) return false; const parts = token.split('.'); if (parts.length !== 4 || parts[0] !== id || Number(parts[1]) < this.now()) return false; const payload = parts.slice(0, 3).join('.'); const expected = createHmac('sha256', this.secret).update(payload).digest('base64url'); return timingSafeEqual(Buffer.from(parts[3]), Buffer.from(expected)); }
-  get(id) { const share = this.shares.get(id); if (!share || share.expiresAt <= this.now() || share.status !== 'active') { if (share) this.stop(id); return null; } return share; }
+  signedSession(id) { const expiresAt = Date.now() + 12 * HOURS; const payload = `${id}.${expiresAt}.${randomBytes(12).toString('base64url')}`; return `${payload}.${createHmac('sha256', this.secret).update(payload).digest('base64url')}`; }
+  validSession(token, id) { if (!token) return false; const parts = token.split('.'); if (parts.length !== 4 || parts[0] !== id || Number(parts[1]) < Date.now()) return false; const payload = parts.slice(0, 3).join('.'); const expected = createHmac('sha256', this.secret).update(payload).digest('base64url'); return timingSafeEqual(Buffer.from(parts[3]), Buffer.from(expected)); }
+  get(id) { const share = this.shares.get(id); if (!share || share.expiresAt <= Date.now() || share.status !== 'active') { if (share) this.stop(id); return null; } return share; }
   async create({ folderPath, expiresInHours = 24 }) {
     if (!Number.isFinite(Number(expiresInHours)) || expiresInHours < 1 || expiresInHours > 168) throw new Error('Expiry must be between 1 and 168 hours');
     const root = path.resolve(folderPath); const stat = await fsp.stat(root); if (!stat.isDirectory()) throw new Error('Select a folder');
     const id = randomBytes(18).toString('base64url'); const passcode = readablePasscode();
-    const share = { id, root, rootReal: await fsp.realpath(root), name: path.basename(root), passcodeHash: hashPasscode(passcode), passcodeCipher: encryptPasscode(passcode, this.secret), expiresAt: this.now() + Number(expiresInHours) * HOURS, status: 'starting', url: null, tunnel: null, transfers: new Map(), stopping: false };
+    const share = { id, root, rootReal: await fsp.realpath(root), name: path.basename(root), passcodeHash: hashPasscode(passcode), passcodeCipher: encryptPasscode(passcode, this.secret), expiresAt: Date.now() + Number(expiresInHours) * HOURS, status: 'starting', url: null, tunnel: null, transfers: new Map(), stopping: false };
     this.shares.set(id, share); this.emit();
     try { await this.startTunnel(share); share.status = 'active'; this.scheduleExpiry(share); this.emit(); return { share: this.publicShare(share), passcode }; }
     catch (error) { share.stopping = true; share.tunnel?.kill(); this.shares.delete(id); this.emit(); throw error; }
   }
   publicShare(s) { return { id: s.id, name: s.name, url: s.url, expiresAt: s.expiresAt, status: s.status, transfers: [...s.transfers.values()] }; }
   credentials(id) { const share = this.get(id); if (!share) return null; if (!share.passcodeCipher) throw new Error('This share was created before passcode recovery was available. Create a new share to copy its passcode again.'); return { url: share.url, passcode: decryptPasscode(share.passcodeCipher, this.secret) }; }
-  scheduleExpiry(share) { share.timer = setTimeout(() => this.stop(share.id), Math.max(0, share.expiresAt - this.now())); }
+  scheduleExpiry(share) { share.timer = setTimeout(() => this.stop(share.id), Math.max(0, share.expiresAt - Date.now())); }
   startTunnel(share) { return new Promise((resolve, reject) => {
     let settled = false; let outputBuffer = ''; const logs = []; const finish = (error, url) => { if (settled) return; settled = true; error ? reject(error) : resolve(url); };
     const tunnel = this.spawnProcess('cloudflared', ['tunnel', '--url', this.tunnelTarget], { windowsHide: true }); share.tunnel = tunnel;
@@ -103,13 +102,8 @@ async function folderTree(share, directory = share.root, prefix = '') {
 // Flat leaf-file listing used to build a "whole folder" zip. Mirrors folderTree's
 // symlink-skipping walk but returns {relative, absolute, size} instead of a tree.
 async function collectFiles(directory, prefix = '') {
-  const entries = await fsp.readdir(directory, { withFileTypes: true }); let files = [];
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.isSymbolicLink()) continue;
-    const absolute = path.join(directory, entry.name); const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) files = files.concat(await collectFiles(absolute, relative));
-    else if (entry.isFile()) { const info = await fsp.stat(absolute); files.push({ relative, absolute, size: info.size }); }
-  }
+  const files = [];
+  await collectInto(directory, prefix, files);
   return files;
 }
 
@@ -146,42 +140,106 @@ function recipientPage(share, authenticated, error = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(share.name)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css"></head><body class="recipient-body"><main class="recipient">${data}</main></body></html>`;
 }
 
+// Serves the sender dashboard's own assets: the built React app when present,
+// Not gated by isLocal for style.css and public-recipient.js - the recipient
+// page needs those too. Returns true once it has written a response, so the
+// caller knows not to try further routes.
+function handleStaticAssets(res, url, isLocal) {
+  if (url.pathname === '/style.css') { css(res, MODERN_STYLE + UI_OVERRIDES + SHADCN_THEME_STYLE + RECIPIENT_UI_STYLE); return true; }
+  if (url.pathname === '/public-recipient.js') { javascript(res, PUBLIC_RECIPIENT_JS); return true; }
+  if (!isLocal) return false;
+  if (url.pathname === '/') {
+    if (hasBuiltFrontend) serveStatic(res, path.join(DIST_DIR, 'index.html'));
+    else text(res, 200, 'Dashboard not built yet. Run "npm run build", then restart.');
+    return true;
+  }
+  if (url.pathname.startsWith('/assets/')) {
+    const filePath = path.join(DIST_DIR, decodeURIComponent(url.pathname.slice(1)));
+    if (containedPath(DIST_DIR, filePath) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) serveStatic(res, filePath);
+    else text(res, 404, 'Not found');
+    return true;
+  }
+  return false;
+}
+
+// The two routes that operate on one existing share by id: reading back its
+// credentials and stopping it. Grouped together since both match against
+// "/api/shares/<id>/..." rather than an exact pathname.
+function handleShareIdApiRoute(req, res, url, manager) {
+  const credentialMatch = url.pathname.match(/^\/api\/shares\/([^/]+)\/credentials$/);
+  if (credentialMatch && req.method === 'GET') {
+    const credentials = manager.credentials(credentialMatch[1]);
+    credentials ? json(res, 200, credentials) : json(res, 404, { error: 'Share not found' });
+    return true;
+  }
+  if (url.pathname.startsWith('/api/shares/') && req.method === 'DELETE') {
+    const stopped = manager.stop(url.pathname.split('/').pop());
+    json(res, stopped ? 200 : 404, { stopped });
+    return true;
+  }
+  return false;
+}
+
+// The local-only sender API (folder picking, share CRUD, live event stream).
+// Every route here requires isLocal, checked once up front rather than on
+// every branch. Returns true once it has written a response.
+async function handleApi(req, res, url, isLocal, manager, options) {
+  if (!isLocal) return false;
+  if (url.pathname === '/api/health') { json(res, 200, { cloudflared: await manager.cloudflaredAvailable() }); return true; }
+  if (url.pathname === '/api/select-folder' && req.method === 'POST') { json(res, 200, { folderPath: await (options.pickDirectory || pickDirectory)() }); return true; }
+  if (url.pathname === '/api/shares' && req.method === 'GET') { json(res, 200, manager.list()); return true; }
+  if (handleShareIdApiRoute(req, res, url, manager)) return true;
+  if (url.pathname === '/api/shares' && req.method === 'POST') { const result = await manager.create(await body(req)); json(res, 201, result); return true; }
+  if (url.pathname === '/api/events') {
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+    const listener = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    manager.listeners.add(listener); listener(manager.list());
+    req.on('close', () => manager.listeners.delete(listener));
+    return true;
+  }
+  return false;
+}
+
+// Verifies the posted passcode and, on success, sets the signed session cookie
+// that every other /s/<id>/* route checks.
+async function handleAuth(req, res, share, manager) {
+  const raw = await new Promise(resolve => { let d = ''; req.on('data', c => d += c); req.on('end', () => resolve(new URLSearchParams(d))); });
+  if (!verifyPasscode(raw.get('passcode') || '', share.passcodeHash)) return html(res, 401, recipientPage(share, false, 'Incorrect passcode. Please try again.'));
+  const token = manager.signedSession(share.id);
+  res.writeHead(303, { location: `/s/${share.id}`, 'set-cookie': `share_${share.id}=${token}; Path=/s/${share.id}; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}` });
+  res.end();
+}
+
+// Routes reachable only once the recipient has the session cookie from
+// handleAuth: browsing the tree and the actual file/zip downloads.
+async function handleAuthedShareContent(req, res, url, share, rest, manager) {
+  if (rest === 'tree' && req.method === 'GET') return json(res, 200, await folderTree(share));
+  if (rest.startsWith('file/') && (req.method === 'GET' || req.method === 'HEAD')) return await streamFile(req, res, share, decodeURIComponent(rest.slice(5)), manager);
+  if (rest === 'zip' && req.method === 'GET') return await streamZip(res, share, url.searchParams.get('paths'), manager);
+  return text(res, 404, 'Not found');
+}
+
+// The public recipient surface: the passcode gate/file browser page and auth
+// are reachable unauthenticated; everything past that needs the session
+// handleAuth sets.
+async function handleShareRequest(req, res, url, match, manager) {
+  const share = manager.get(match[1]); if (!share) return text(res, 404, 'This share is no longer available.');
+  const rest = match[2] || ''; const authed = manager.validSession(cookie(req, `share_${share.id}`), share.id);
+  if (rest === '' && req.method === 'GET') return html(res, 200, recipientPage(share, authed));
+  if (rest === 'auth' && req.method === 'POST') return handleAuth(req, res, share, manager);
+  if (!authed) return text(res, 401, 'Passcode required');
+  return handleAuthedShareContent(req, res, url, share, rest, manager);
+}
+
 export function createServer(options = {}) {
   const manager = options.manager || new ShareManager(options);
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://local'); const isLocal = localRequest(req);
     try {
-      if (url.pathname === '/style.css') return css(res, MODERN_STYLE + UI_OVERRIDES + SHADCN_THEME_STYLE + TRANSFER_UI_STYLE + RECIPIENT_UI_STYLE);
-      if (url.pathname === '/public-recipient.js') return javascript(res, PUBLIC_RECIPIENT_JS);
-      // Local sender dashboard: prefer the built React app, else the legacy inline UI.
-      if (isLocal && hasBuiltFrontend) {
-        if (url.pathname === '/') return serveStatic(res, path.join(DIST_DIR, 'index.html'));
-        if (url.pathname.startsWith('/assets/')) {
-          const filePath = path.join(DIST_DIR, decodeURIComponent(url.pathname.slice(1)));
-          if (containedPath(DIST_DIR, filePath) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) return serveStatic(res, filePath);
-          return text(res, 404, 'Not found');
-        }
-      }
-      if (url.pathname === '/dashboard.js' && isLocal) return javascript(res, DASHBOARD_RUNTIME_JS);
-      if (url.pathname === '/' && isLocal) return html(res, 200, MODERN_DASHBOARD);
-      if (url.pathname === '/api/health' && isLocal) return json(res, 200, { cloudflared: await manager.cloudflaredAvailable() });
-      if (url.pathname === '/api/select-folder' && isLocal && req.method === 'POST') return json(res, 200, { folderPath: await (options.pickDirectory || pickDirectory)() });
-      if (url.pathname === '/api/shares' && isLocal && req.method === 'GET') return json(res, 200, manager.list());
-      const credentialMatch = url.pathname.match(/^\/api\/shares\/([^/]+)\/credentials$/);
-      if (credentialMatch && isLocal && req.method === 'GET') { const credentials = manager.credentials(credentialMatch[1]); return credentials ? json(res, 200, credentials) : json(res, 404, { error: 'Share not found' }); }
-      if (url.pathname === '/api/shares' && isLocal && req.method === 'POST') { const result = await manager.create(await body(req)); return json(res, 201, result); }
-      if (url.pathname.startsWith('/api/shares/') && isLocal && req.method === 'DELETE') { const stopped = manager.stop(url.pathname.split('/').pop()); return json(res, stopped ? 200 : 404, { stopped }); }
-      if (url.pathname === '/api/events' && isLocal) { res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' }); const listener = data => res.write(`data: ${JSON.stringify(data)}\n\n`); manager.listeners.add(listener); listener(manager.list()); req.on('close', () => manager.listeners.delete(listener)); return; }
+      if (handleStaticAssets(res, url, isLocal)) return;
+      if (await handleApi(req, res, url, isLocal, manager, options)) return;
       const match = url.pathname.match(/^\/s\/([^/]+)(?:\/(.*))?$/); if (!match) return text(res, 404, 'Not found');
-      const share = manager.get(match[1]); if (!share) return text(res, 404, 'This share is no longer available.');
-      const rest = match[2] || ''; const authed = manager.validSession(cookie(req, `share_${share.id}`), share.id);
-      if (rest === '' && req.method === 'GET') return html(res, 200, recipientPage(share, authed));
-      if (rest === 'auth' && req.method === 'POST') { const raw = await new Promise(resolve => { let d = ''; req.on('data', c => d += c); req.on('end', () => resolve(new URLSearchParams(d))); }); if (!verifyPasscode(raw.get('passcode') || '', share.passcodeHash)) return html(res, 401, recipientPage(share, false, 'Incorrect passcode. Please try again.')); const token = manager.signedSession(share.id); res.writeHead(303, { location: `/s/${share.id}`, 'set-cookie': `share_${share.id}=${token}; Path=/s/${share.id}; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}` }); return res.end(); }
-      if (!authed) return text(res, 401, 'Passcode required');
-      if (rest === 'tree' && req.method === 'GET') return json(res, 200, await folderTree(share));
-      if (rest.startsWith('file/') && (req.method === 'GET' || req.method === 'HEAD')) return await streamFile(req, res, share, decodeURIComponent(rest.slice(5)), manager);
-      if (rest === 'zip' && req.method === 'GET') return await streamZip(res, share, url.searchParams.get('paths'), manager);
-      return text(res, 404, 'Not found');
+      return await handleShareRequest(req, res, url, match, manager);
     } catch (error) { if (error.code === 'ENOENT') return text(res, 404, 'File not found'); console.error(error); return json(res, 400, { error: error.message || 'Request failed' }); }
   });
   const listen = (...args) => {
@@ -196,10 +254,25 @@ export function createServer(options = {}) {
 }
 
 function javascript(res, source) { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' }); res.end(source); }
+// Parses a "Range: bytes=..." header against a known file size. Returns
+// {start, end, status} - status 200 for the whole file (no header sent), 206
+// for a satisfiable partial range - or null if the header is malformed or the
+// range doesn't fit, in which case the caller responds 416.
+function parseRange(rangeHeader, size) {
+  if (!rangeHeader) return { start: 0, end: size - 1, status: 200 };
+  const m = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+  if (!m) return null;
+  const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  if (start > end || start >= size) return null;
+  return { start, end, status: 206 };
+}
+
 async function streamFile(req, res, share, relative, manager) {
   const file = await resolveSharedFile(share, relative); const stat = await fsp.stat(file); if (!stat.isFile()) return text(res, 404, 'Not a file');
-  let start = 0, end = stat.size - 1, status = 200; const range = req.headers.range;
-  if (range) { const m = range.match(/^bytes=(\d*)-(\d*)$/); if (!m) { res.writeHead(416, { 'content-range': `bytes */${stat.size}` }); return res.end(); } start = m[1] ? Number(m[1]) : Math.max(0, stat.size - Number(m[2])); end = m[2] ? Math.min(Number(m[2]), stat.size - 1) : stat.size - 1; if (start > end || start >= stat.size) { res.writeHead(416, { 'content-range': `bytes */${stat.size}` }); return res.end(); } status = 206; }
+  const range = parseRange(req.headers.range, stat.size);
+  if (!range) { res.writeHead(416, { 'content-range': `bytes */${stat.size}` }); return res.end(); }
+  const { start, end, status } = range;
   const length = end - start + 1; const name = path.basename(file); const headers = { 'content-type': MIME[path.extname(name).toLowerCase()] || 'application/octet-stream', 'content-length': length, 'accept-ranges': 'bytes', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}` }; if (status === 206) headers['content-range'] = `bytes ${start}-${end}/${stat.size}`; res.writeHead(status, headers); if (req.method === 'HEAD') return res.end();
   const transfer = { id: randomBytes(9).toString('base64url'), file: relative, size: stat.size, bytesSent: 0, percent: 0, speed: 0, status: 'active', startedAt: Date.now() }; manager.addTransfer(share, transfer);
   const source = fs.createReadStream(file, { start, end }); let settled = false;
@@ -213,22 +286,28 @@ async function streamFile(req, res, share, relative, manager) {
 // download, which sidesteps the "multiple automatic downloads" block that
 // silently drops all but the first file when several are downloaded individually
 // in a row without their own user gesture.
-async function streamZip(res, share, pathsParam, manager) {
-  let entries;
-  if (pathsParam) {
-    let requested;
-    try { requested = JSON.parse(pathsParam); } catch { return json(res, 400, { error: 'Invalid paths parameter' }); }
-    if (!Array.isArray(requested) || requested.some(p => typeof p !== 'string') || requested.length === 0) return json(res, 400, { error: 'Invalid paths parameter' });
-    entries = [];
-    for (const relative of requested) {
-      for (const entry of await expandPath(share, relative)) entries.push(entry);
-    }
-    // De-dupe in case the selection overlaps (e.g. a folder plus files inside it).
-    const seen = new Set();
-    entries = entries.filter(entry => seen.has(entry.absolute) ? false : (seen.add(entry.absolute), true));
-  } else {
-    entries = await collectFiles(share.root);
+// Resolves which files a zip request should contain: every file in the share
+// when pathsParam is empty, or the expansion of an explicit JSON list of
+// relative paths (a directory in that list is walked; overlapping selections
+// are de-duped). Returns {entries} or {error} for the caller to send as 400.
+async function resolveZipEntries(share, pathsParam) {
+  if (!pathsParam) return { entries: await collectFiles(share.root) };
+  let requested;
+  try { requested = JSON.parse(pathsParam); } catch { return { error: 'Invalid paths parameter' }; }
+  if (!Array.isArray(requested) || requested.length === 0 || requested.some(p => typeof p !== 'string')) {
+    return { error: 'Invalid paths parameter' };
   }
+  const entries = [];
+  for (const relative of requested) {
+    for (const entry of await expandPath(share, relative)) entries.push(entry);
+  }
+  const seen = new Set();
+  return { entries: entries.filter(entry => seen.has(entry.absolute) ? false : (seen.add(entry.absolute), true)) };
+}
+
+async function streamZip(res, share, pathsParam, manager) {
+  const { entries, error } = await resolveZipEntries(share, pathsParam);
+  if (error) return json(res, 400, { error });
   if (!entries.length) return text(res, 404, 'No files to download');
 
   const zipName = `${share.name}.zip`;

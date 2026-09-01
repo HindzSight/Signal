@@ -6,13 +6,14 @@ import fs from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import { hashPasscode, verifyPasscode, containedPath, resolveSharedFile, ShareManager, createServer } from '../src/server.js';
 
-function mockTunnelManager() {
+function mockTunnelManager(chunks = ['Your quick Tunnel has been created! https://verify.trycloudflare.com']) {
   const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.kill = () => { child.killed = true; };
-  return new ShareManager({ spawnProcess: () => { queueMicrotask(() => child.stderr.emit('data', 'Your quick Tunnel has been created! https://verify.trycloudflare.com')); return child; } });
+  const manager = new ShareManager({ spawnProcess: () => { queueMicrotask(() => chunks.forEach(chunk => child.stderr.emit('data', chunk))); return child; } });
+  return { manager, child };
 }
 
 async function startTestShare(folder) {
-  const manager = mockTunnelManager();
+  const { manager } = mockTunnelManager();
   const app = createServer({ manager });
   const { share } = await manager.create({ folderPath: folder, expiresInHours: 1 });
   await new Promise(resolve => app.listen(0, resolve));
@@ -46,8 +47,8 @@ test('resolved files cannot escape through a symlink', async t => {
 
 test('a stopped share is immediately unavailable and terminates its tunnel', async () => {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'folder-share-'));
-  const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.kill = () => { child.killed = true; };
-  const manager = new ShareManager({ spawnProcess: () => { queueMicrotask(() => { child.stderr.emit('data', 'Your quick Tunnel has been created! https://orange.'); child.stderr.emit('data', 'trycloudflare.com'); }); return child; } });
+  // URL arrives split across two stderr chunks, as cloudflared's real output can.
+  const { manager, child } = mockTunnelManager(['Your quick Tunnel has been created! https://orange.', 'trycloudflare.com']);
   const { share, passcode } = await manager.create({ folderPath: folder, expiresInHours: 1 });
   assert.equal(share.url, `https://orange.trycloudflare.com/s/${share.id}`);
   assert.deepEqual(manager.credentials(share.id), { url: share.url, passcode });

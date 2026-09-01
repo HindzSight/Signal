@@ -20,7 +20,7 @@ function resolveCloudflaredPath() {
   return fs.existsSync(devPath) ? devPath : 'cloudflared';
 }
 
-function createShareManager(mainWindow) {
+function createShareManager() {
   const cloudflaredPath = resolveCloudflaredPath();
   return new ShareManager({
     spawnProcess: (_command, args, options) => spawn(cloudflaredPath, args, options),
@@ -47,7 +47,7 @@ async function start() {
     webPreferences: { contextIsolation: true, sandbox: true },
   });
 
-  const manager = createShareManager(mainWindow);
+  const manager = createShareManager();
   appServer = createServer({ manager, pickDirectory: () => pickDirectory(mainWindow) });
   await new Promise((resolve, reject) => {
     appServer.server.once('error', reject);
