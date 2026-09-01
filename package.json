@@ -1,6 +1,6 @@
 {
   "name": "signal",
-  "version": "0.1.2",
+  "version": "0.2.1",
   "private": true,
   "description": "Secure, temporary folder sharing through Cloudflare Quick Tunnels.",
   "author": "Manan Jain",
