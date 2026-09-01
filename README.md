@@ -8,9 +8,10 @@ passcode-protected Cloudflare Quick Tunnel - and watch their downloads in real
 time. Files are never uploaded to this app or any storage provider; they stream
 directly off your disk while the tunnel is open.
 
-Signal is free and open source. **[Download the desktop app](https://github.com/HindzSight/Signal/releases/latest)**
-for Mac or Windows and start sharing in a minute - no separate `cloudflared`
-install needed, it's bundled in.
+Signal is free and open source. **[hindzsight.github.io/Signal](https://hindzsight.github.io/Signal/)**
+has the full pitch and always links the latest build for your platform, or grab
+it straight from **[the releases page](https://github.com/HindzSight/Signal/releases/latest)**.
+Mac, Windows, and Linux, no separate `cloudflared` install needed, it's bundled in.
 
 > 📖 **Just want to run it?** See **[RUNNING.md](RUNNING.md)** for a step-by-step
 > local setup guide.
