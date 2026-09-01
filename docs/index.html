@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal: beam a folder, not a server</title>
+<meta name="description" content="Share a folder straight from your computer through a temporary, passcode-protected link. No uploads, no accounts, no storage limits. Files stream directly off your disk.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='9' fill='%23ff7a29'/%3E%3Ccircle cx='24' cy='24' r='16' fill='none' stroke='%23ff7a29' stroke-width='2'/%3E%3Ccircle cx='24' cy='24' r='22' fill='none' stroke='%23ff7a29' stroke-width='1.5' opacity='.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#14110d; --card:#1d1913; --card-2:#241f17; --foreground:#f3ece0;
+  --muted:#a89a83; --border:#332b1f; --input:#3a3123;
+  --primary:#ff7a29; --signal-glow:#ffab52; --online:#64dfa2;
+  --font-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --font-sans:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--background); color:var(--foreground);
+  font-family:var(--font-sans); -webkit-font-smoothing:antialiased;
+  min-height:100vh; overflow-x:hidden; position:relative;
+}
+::selection{background:var(--primary);color:#17120c}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;margin:0}
+p{margin:0;line-height:1.6}
+a{color:inherit}
+code,.mono{font-family:var(--font-mono)}
+
+/* atmosphere */
+.grain::before{
+  content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.grid-field{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(#ffffff07 1px,transparent 1px),linear-gradient(90deg,#ffffff07 1px,transparent 1px);
+  background-size:46px 46px;
+  mask-image:radial-gradient(ellipse 80% 55% at 50% 0%,#000 20%,transparent 78%);
+}
+.beacon-glow{
+  position:fixed;top:-360px;left:50%;translate:-50% 0;width:1000px;height:680px;z-index:0;pointer-events:none;
+  background:radial-gradient(circle at center,color-mix(in oklab,var(--primary) 24%,transparent) 0%,color-mix(in oklab,var(--primary) 8%,transparent) 34%,transparent 66%);
+  filter:blur(12px); animation:breathe 7s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes emit{0%{opacity:0;transform:scale(.5)}35%{opacity:.9}100%{opacity:0;transform:scale(1.15)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in oklab,var(--online) 55%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sweep{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+.pulse{animation:pulse 2.4s cubic-bezier(.4,0,.2,1) infinite}
+.rise{animation:rise .7s cubic-bezier(.16,1,.3,1) both}
+
+main{position:relative;z-index:2}
+.shell{max-width:1120px;margin:0 auto;padding:0 24px}
+
+/* nav */
+nav{display:flex;align-items:center;justify-content:space-between;padding:26px 0}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none}
+.brand svg{width:30px;height:30px}
+.brand span{font-family:var(--font-display);font-weight:700;font-size:19px;letter-spacing:-.02em}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{font-size:14px;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover{color:var(--foreground)}
+.gh-btn{
+  display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:8px;
+  border:1px solid var(--border);background:var(--card);color:var(--foreground);text-decoration:none;
+  font-size:13px;font-weight:600;transition:border-color .15s,background .15s;
+}
+.gh-btn:hover{border-color:color-mix(in oklab,var(--primary) 50%,var(--border));background:var(--card-2)}
+
+/* hero */
+.hero{padding:64px 0 40px;text-align:center}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;font-weight:700;
+  letter-spacing:.24em;color:var(--primary);text-transform:uppercase;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--online)}
+.hero h1{font-size:clamp(40px,6vw,72px);line-height:1.02;margin:22px 0 20px}
+.hero h1 em{font-style:normal;color:var(--primary)}
+.hero p.lede{
+  max-width:620px;margin:0 auto;color:var(--muted);font-size:18px;line-height:1.65;
+}
+.cta-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:36px}
+.btn{
+  display:inline-flex;align-items:center;gap:10px;height:52px;padding:0 26px;border-radius:11px;
+  font-weight:700;font-size:15.5px;text-decoration:none;cursor:pointer;border:1px solid transparent;
+  transition:filter .15s,transform .05s,background .15s,border-color .15s;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{
+  background:linear-gradient(180deg,var(--signal-glow),var(--primary));color:#17120c;
+  box-shadow:0 14px 36px -12px color-mix(in oklab,var(--primary) 70%,transparent),0 1px 0 0 #ffffff44 inset;
+}
+.btn-primary:hover{filter:brightness(1.06)}
+.btn-secondary{background:var(--card);border-color:var(--border);color:var(--foreground)}
+.btn-secondary:hover{border-color:color-mix(in oklab,var(--primary) 40%,var(--border))}
+.hero-meta{margin-top:16px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.hero-meta a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.hero-meta a:hover{color:var(--foreground)}
+
+/* beacon mark + eyebrow, as one aligned lockup */
+.hero-badge{
+  display:inline-flex;align-items:center;gap:10px;margin-bottom:6px;
+  font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--primary);
+}
+.hero-badge svg{width:30px;height:30px;flex:none}
+.hero-badge circle.ring{transform-origin:center;animation:emit 2.6s cubic-bezier(.2,.6,.3,1) infinite}
+
+/* screenshot */
+.screenshot-wrap{
+  margin:56px auto 0;max-width:920px;border-radius:16px;overflow:hidden;
+  border:1px solid var(--border);box-shadow:0 40px 100px -30px #000,0 1px 0 0 #ffffff08 inset;
+  position:relative;
+}
+.screenshot-wrap::after{
+  content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,var(--background) 100%);pointer-events:none;
+}
+.screenshot-wrap img{display:block;width:100%;height:auto}
+
+/* sections */
+section{padding:88px 0}
+.section-head{max-width:640px;margin:0 auto 48px;text-align:center}
+.section-head .eyebrow{display:flex;justify-content:center}
+.section-head h2{font-size:clamp(28px,4vw,40px);margin-top:14px}
+.section-head p{color:var(--muted);font-size:16px;margin-top:12px}
+
+/* how it works */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.step{
+  background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px 22px;
+  position:relative;
+}
+.step-num{
+  font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--primary);
+  display:flex;align-items:center;gap:8px;margin-bottom:14px;letter-spacing:.08em;
+}
+.step-num::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--primary)}
+.step h3{font-size:16px;margin-bottom:8px}
+.step p{color:var(--muted);font-size:14px}
+
+/* feature grid */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.feature{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px}
+.feature .icon{
+  display:grid;place-items:center;width:42px;height:42px;border-radius:10px;
+  background:color-mix(in oklab,var(--primary) 12%,transparent);border:1px solid color-mix(in oklab,var(--primary) 25%,transparent);
+  color:var(--primary);margin-bottom:16px;
+}
+.feature h3{font-size:16px;margin-bottom:8px}
+.feature p{color:var(--muted);font-size:14px;line-height:1.6}
+
+/* recipient screenshots row */
+.shots-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.shot-card{
+  background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;
+}
+.shot-card img{display:block;width:100%;height:auto}
+.shot-card .cap{padding:16px 18px;font-size:13px;color:var(--muted)}
+.shot-card .cap b{color:var(--foreground);font-weight:600}
+
+/* download */
+.download-panel{
+  background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;
+  box-shadow:0 30px 80px -40px #000,0 1px 0 0 #ffffff06 inset;
+}
+.download-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.download-head h2{font-size:26px}
+.version-badge{
+  font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--online);
+  border:1px solid color-mix(in oklab,var(--online) 35%,transparent);background:color-mix(in oklab,var(--online) 10%,transparent);
+  padding:6px 12px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+}
+.version-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--online)}
+.platform-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.platform-card{
+  background:var(--card-2);border:1px solid var(--border);border-radius:14px;padding:22px;
+  display:flex;flex-direction:column;gap:14px;transition:border-color .15s,transform .15s;
+}
+.platform-card.recommended{border-color:color-mix(in oklab,var(--primary) 55%,var(--border));background:color-mix(in oklab,var(--primary) 6%,var(--card-2))}
+.platform-card .plat-icon{width:28px;height:28px;color:var(--foreground)}
+.platform-card.recommended .plat-icon{color:var(--primary)}
+.plat-name{font-weight:700;font-size:16px}
+.plat-tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--primary);
+  text-transform:uppercase;
+}
+.plat-sub{color:var(--muted);font-size:13px}
+.plat-links{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.plat-link{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;height:42px;padding:0 14px;border-radius:8px;
+  background:var(--card);border:1px solid var(--border);text-decoration:none;color:var(--foreground);
+  font-size:13px;font-weight:600;transition:border-color .15s,background .15s;
+}
+.plat-link:hover{border-color:color-mix(in oklab,var(--primary) 45%,var(--border));background:var(--card-2)}
+.plat-link .size{color:var(--muted);font-family:var(--font-mono);font-size:11px;font-weight:400}
+.platform-card.recommended .plat-link{background:linear-gradient(180deg,var(--signal-glow),var(--primary));color:#17120c;border-color:transparent}
+.platform-card.recommended .plat-link .size{color:#3a2210}
+.plat-link.disabled{opacity:.45;pointer-events:none}
+.download-foot{
+  margin-top:24px;padding-top:20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  font-size:13px;color:var(--muted);
+}
+.download-foot a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.download-foot a:hover{color:var(--foreground)}
+.load-state{font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.spinner{width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* security note */
+.note{
+  max-width:780px;margin:0 auto;text-align:center;color:var(--muted);font-size:14px;line-height:1.7;
+}
+.note b{color:var(--foreground)}
+
+footer{border-top:1px solid var(--border);padding:40px 0;margin-top:20px}
+.foot-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.foot-left{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
+.foot-links{display:flex;gap:22px}
+.foot-links a{color:var(--muted);font-size:13px;text-decoration:none}
+.foot-links a:hover{color:var(--foreground)}
+
+@media(max-width:860px){
+  .steps{grid-template-columns:1fr 1fr}
+  .features{grid-template-columns:1fr}
+  .shots-row{grid-template-columns:1fr}
+  .platform-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+@media(max-width:600px){
+  .steps{grid-template-columns:1fr}
+  .download-panel{padding:24px}
+  section{padding:60px 0}
+}
+</style>
+</head>
+<body class="grain">
+<div class="grid-field"></div>
+<div class="beacon-glow"></div>
+
+<main>
+<div class="shell">
+  <nav>
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <defs><radialGradient id="bg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffab52"/><stop offset="100%" stop-color="#ff7a29"/></radialGradient></defs>
+        <circle cx="24" cy="24" r="9" fill="none" stroke="#ff7a29" stroke-width="1.75"/>
+        <circle cx="24" cy="24" r="16" fill="none" stroke="#ff7a29" stroke-width="1.5" opacity=".6"/>
+        <circle cx="24" cy="24" r="5.5" fill="url(#bg)"/>
+      </svg>
+      <span>Signal</span>
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Why Signal</a>
+      <a href="#download">Download</a>
+    </div>
+    <a class="gh-btn" href="https://github.com/HindzSight/Signal" target="_blank" rel="noreferrer">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      GitHub
+    </a>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="hero-badge rise">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <defs><radialGradient id="core" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffab52"/><stop offset="100%" stop-color="#ff7a29"/></radialGradient></defs>
+        <circle class="ring" cx="24" cy="24" r="9" fill="none" stroke="#ff7a29" stroke-width="1.75" style="animation-delay:0s"/>
+        <circle class="ring" cx="24" cy="24" r="15.5" fill="none" stroke="#ff7a29" stroke-width="1.75" style="animation-delay:.45s"/>
+        <circle class="ring" cx="24" cy="24" r="22" fill="none" stroke="#ff7a29" stroke-width="1.75" style="animation-delay:.9s"/>
+        <circle cx="24" cy="24" r="5.5" fill="url(#core)"/>
+      </svg>
+      <span>Free and open source</span>
+    </div>
+    <h1 class="rise" style="animation-delay:.1s">Beam a folder,<br>not a <em>server</em>.</h1>
+    <p class="lede rise" style="animation-delay:.18s">
+      Signal turns any folder on your computer into a temporary, passcode-protected
+      download link, no uploads, no storage limits, no account for your recipient.
+      Files stream straight off your disk through a Cloudflare tunnel, and close the
+      moment you say so.
+    </p>
+    <div class="cta-row rise" style="animation-delay:.26s">
+      <a class="btn btn-primary" id="hero-cta" href="https://github.com/HindzSight/Signal/releases/latest">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v13m0 0 5-5m-5 5-5-5M4 21h16"/></svg>
+        <span id="hero-cta-label">Download for your platform</span>
+      </a>
+      <a class="btn btn-secondary" href="#download">See all downloads</a>
+    </div>
+    <p class="hero-meta rise" style="animation-delay:.32s">Mac (Apple Silicon &amp; Intel) · Windows · Linux &nbsp;·&nbsp; <a href="https://github.com/HindzSight/Signal#readme">or run it from source</a></p>
+
+    <div class="screenshot-wrap rise" style="animation-delay:.4s">
+      <img src="screenshots/homepage.png" alt="The Signal dashboard showing an active share with a live link and real-time download progress for three files.">
+    </div>
+  </header>
+
+  <section id="how">
+    <div class="section-head">
+      <p class="eyebrow">How it works</p>
+      <h2>Four steps. Nothing to install for them.</h2>
+      <p>Your recipient just clicks a link. Signal is the only thing that runs on your machine.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Choose a folder</h3>
+        <p>Open Signal, browse to the folder you want to share. Nothing uploads yet.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Open a channel</h3>
+        <p>Signal spins up a temporary Cloudflare tunnel and a random passcode, no server of yours involved.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Send the link</h3>
+        <p>Share the link and passcode separately. Your recipient enters the passcode and browses the folder.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Watch it live</h3>
+        <p>Every download shows up in real time: progress, speed, completion, right on your dashboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="section-head">
+      <p class="eyebrow">Why Signal</p>
+      <h2>Built for "I just need to send this," not a storage product.</h2>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg></div>
+        <h3>Files never leave your disk</h3>
+        <p>Signal doesn't upload anything anywhere. It streams bytes directly from your folder to your recipient through the tunnel, with no intermediate storage and no size cap.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>Live download telemetry</h3>
+        <p>Watch each file's progress, speed, and status update in real time as your recipient downloads. No guessing whether it went through.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>Passcode-protected, expiring links</h3>
+        <p>Every share gets a random passcode and an auto-close timer (1 hour to 7 days). Stop it instantly whenever you want.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></div>
+        <h3>Whole folders, zipped on demand</h3>
+        <p>Recipients can grab a single file, a multi-file selection, or the entire folder as one streamed zip, so no partial downloads get lost to browser limits.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <h3>Nothing to configure</h3>
+        <p>cloudflared ships bundled inside the desktop app. Download, open, pick a folder, and you're transmitting in under a minute.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+        <h3>Free and open source</h3>
+        <p>MIT licensed. Read the code, self-host it, or send a pull request. See the <a href="https://github.com/HindzSight/Signal/blob/main/CONTRIBUTING.md">contributing guide</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">The recipient side</p>
+      <h2>No install, no account, just a link.</h2>
+      <p>Your recipient opens the link, enters the passcode you sent separately, and browses.</p>
+    </div>
+    <div class="shots-row">
+      <div class="shot-card">
+        <img src="screenshots/receiver.png" alt="The recipient's file browser showing a folder tree with files and a nested subfolder.">
+        <div class="cap"><b>Browse the folder.</b> Files and subfolders, sizes included, right in the browser.</div>
+      </div>
+      <div class="shot-card">
+        <img src="screenshots/receiver-select.png" alt="The recipient selecting multiple files and a folder to download at once, with a Download selected button.">
+        <div class="cap"><b>Grab everything at once.</b> Select files or whole folders, and Signal bundles the selection into a single zip.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="download-panel">
+      <div class="download-head">
+        <div>
+          <p class="eyebrow" style="margin-bottom:10px">Download</p>
+          <h2>Get Signal</h2>
+        </div>
+        <span class="version-badge" id="version-badge"><span class="dot"></span><span id="version-label">fetching latest release…</span></span>
+      </div>
+
+      <div id="platform-grid" class="platform-grid">
+        <!-- populated by JS; static fallback below shows while loading / if the API call fails -->
+      </div>
+
+      <div class="download-foot">
+        <span class="load-state" id="load-state"><span class="spinner"></span> Checking github.com for the latest release…</span>
+        <a href="https://github.com/HindzSight/Signal/releases" target="_blank" rel="noreferrer">See every release on GitHub →</a>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:28px">
+      Installers are <b>not code-signed</b> (no paid Apple/Windows developer certificate), so your OS
+      will warn on first launch. On Windows, click <b>More info → Run anyway</b>. On Mac, right-click
+      the app → <b>Open</b>; if it says the app "is damaged," run <code>xattr -cr /Applications/Signal.app</code>
+      in Terminal once. Full detail in the <a href="https://github.com/HindzSight/Signal#desktop-app-mac--windows--linux" style="color:var(--foreground)">README</a>.
+    </p>
+  </section>
+
+  <footer>
+    <div class="foot-row">
+      <div class="foot-left">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="9" fill="none" stroke="#ff7a29" stroke-width="2"/><circle cx="24" cy="24" r="5" fill="#ff7a29"/></svg>
+        <span>Signal · MIT licensed · © 2026 hindzsight</span>
+      </div>
+      <div class="foot-links">
+        <a href="https://github.com/HindzSight/Signal">Repository</a>
+        <a href="https://github.com/HindzSight/Signal/blob/main/LICENSE">License</a>
+        <a href="https://github.com/HindzSight/Signal/blob/main/RUNNING.md">Run from source</a>
+        <a href="https://github.com/HindzSight/Signal/issues">Report an issue</a>
+      </div>
+    </div>
+  </footer>
+</div>
+</main>
+
+<script>
+const REPO = 'HindzSight/Signal';
+
+function detectPlatform() {
+  const ua = navigator.userAgent;
+  const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  if (/Mac/i.test(platform) || /Mac/i.test(ua)) {
+    // Apple Silicon detection: Safari on ARM Macs still reports "MacIntel" (Rosetta translation
+    // layer for UA strings), so check for touch support on "MacIntel" as the common heuristic,
+    // and fall back to WebGL renderer sniffing when available.
+    const maybeAppleSilicon = /Mac/i.test(platform) && navigator.maxTouchPoints > 1;
+    return maybeAppleSilicon ? 'mac-arm64' : 'mac-x64';
+  }
+  if (/Win/i.test(platform) || /Windows/i.test(ua)) return 'windows';
+  if (/Linux/i.test(platform) || /Linux/i.test(ua)) return 'linux';
+  return 'unknown';
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / 1_000_000;
+  return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB';
+}
+
+const PLATFORM_ICONS = {
+  mac: '<svg class="plat-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.63.91-1.377 0-2.4-1.44-3.36-2.78-1.85-2.62-3.256-7.42-1.36-10.67.94-1.61 2.62-2.63 4.44-2.66 1.36-.03 2.42.91 3.24.91.82 0 2.19-1.13 3.7-.96.63.03 2.41.25 3.55 1.9-.09.06-2.12 1.24-2.1 3.7.03 2.94 2.6 3.92 2.63 3.93z"/></svg>',
+  win: '<svg class="plat-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.2H3zM11.5 4.3 21 3v8.6H11.5zM3 12.6h7.5v7.2L3 18.7zM11.5 12.6H21V21l-9.5-1.3z"/></svg>',
+  linux: '<svg class="plat-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2.2 0-3.2 2.1-3.2 4.3 0 1.3.3 1.9-.6 3.2-1 1.4-2.3 2.5-2.3 4.6 0 3.6 2.7 5 3.4 6.4.3.6.4 1.5 1.5 1.5.9 0 .9-.7 1.9-.7.9 0 1 .7 1.9.7 1 0 1.1-.9 1.4-1.5.7-1.4 3.4-2.8 3.4-6.4 0-2.1-1.3-3.2-2.3-4.6-.9-1.3-.6-1.9-.6-3.2C16.5 4.4 15.2 2 13 2Z" opacity=".9"/></svg>',
+};
+
+function platformCard({ key, icon, name, tag, sub, links, recommended }) {
+  const linksHtml = links.map(l =>
+    l.href
+      ? `<a class="plat-link" href="${l.href}"><span>${l.label}</span><span class="size">${l.size || ''}</span></a>`
+      : `<span class="plat-link disabled"><span>${l.label}</span></span>`
+  ).join('');
+  return `<div class="platform-card${recommended ? ' recommended' : ''}" data-platform="${key}">
+    ${PLATFORM_ICONS[icon]}
+    <div>
+      ${recommended ? '<div class="plat-tag">Recommended for you</div>' : ''}
+      <div class="plat-name">${name}</div>
+      <div class="plat-sub">${sub}</div>
+    </div>
+    <div class="plat-links">${linksHtml}</div>
+  </div>`;
+}
+
+async function loadRelease() {
+  const grid = document.getElementById('platform-grid');
+  const loadState = document.getElementById('load-state');
+  const versionLabel = document.getElementById('version-label');
+  const heroCta = document.getElementById('hero-cta');
+  const heroCtaLabel = document.getElementById('hero-cta-label');
+  const detected = detectPlatform();
+
+  // Render a static skeleton immediately so the page never looks broken while fetching.
+  const fallback = {
+    'mac-arm64': null, 'mac-x64': null, windows: null, linux: null,
+  };
+
+  function render(assets, version) {
+    const find = re => assets.find(a => re.test(a.name));
+    const macArm = find(/arm64\.dmg$/i);
+    const macIntel = find(/(?<!arm64)\.dmg$/i) || find(/^Signal-[\d.]+\.dmg$/i);
+    const win = find(/\.exe$/i);
+    const linuxApp = find(/\.AppImage$/i);
+
+    const cards = [
+      platformCard({
+        key: 'mac', icon: 'mac', name: 'macOS',
+        tag: 'mac', sub: 'Apple Silicon or Intel',
+        recommended: detected === 'mac-arm64' || detected === 'mac-x64',
+        links: [
+          { label: 'Apple Silicon (.dmg)', href: macArm && macArm.browser_download_url, size: macArm && fmtSize(macArm.size) },
+          { label: 'Intel (.dmg)', href: macIntel && macIntel.browser_download_url, size: macIntel && fmtSize(macIntel.size) },
+        ].map(l => l.href ? l : { label: l.label }),
+      }),
+      platformCard({
+        key: 'windows', icon: 'win', name: 'Windows',
+        sub: 'x64 installer',
+        recommended: detected === 'windows',
+        links: [{ label: 'Download for Windows (.exe)', href: win && win.browser_download_url, size: win && fmtSize(win.size) }],
+      }),
+      platformCard({
+        key: 'linux', icon: 'linux', name: 'Linux',
+        sub: 'AppImage, no install needed',
+        recommended: detected === 'linux',
+        links: [{ label: 'Download AppImage', href: linuxApp && linuxApp.browser_download_url, size: linuxApp && fmtSize(linuxApp.size) }],
+      }),
+    ];
+    grid.innerHTML = cards.join('');
+
+    versionLabel.textContent = version;
+    loadState.innerHTML = `<span style="color:var(--online)">●</span> Live from GitHub Releases`;
+
+    const recommendedLink = grid.querySelector('.platform-card.recommended .plat-link:not(.disabled)');
+    if (recommendedLink) {
+      heroCta.href = recommendedLink.getAttribute('href');
+      const names = { mac: 'Mac', windows: 'Windows', linux: 'Linux' };
+      const rec = grid.querySelector('.platform-card.recommended');
+      heroCtaLabel.textContent = 'Download for ' + (rec ? names[rec.dataset.platform] : 'your platform');
+    } else {
+      heroCta.href = 'https://github.com/HindzSight/Signal/releases/latest';
+      heroCtaLabel.textContent = 'See all downloads';
+    }
+  }
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) throw new Error('GitHub API returned ' + res.status);
+    const release = await res.json();
+    render(release.assets || [], release.tag_name || release.name || 'latest');
+  } catch (err) {
+    loadState.textContent = "Couldn't reach GitHub's API just now. Use the button below.";
+    versionLabel.textContent = 'see releases page';
+    grid.innerHTML = platformCard({
+      key: 'mac', icon: 'mac', name: 'macOS', sub: 'Apple Silicon or Intel',
+      links: [{ label: 'Open Releases page', href: `https://github.com/${REPO}/releases/latest` }],
+    }) + platformCard({
+      key: 'windows', icon: 'win', name: 'Windows', sub: 'x64 installer',
+      links: [{ label: 'Open Releases page', href: `https://github.com/${REPO}/releases/latest` }],
+    }) + platformCard({
+      key: 'linux', icon: 'linux', name: 'Linux', sub: 'AppImage',
+      links: [{ label: 'Open Releases page', href: `https://github.com/${REPO}/releases/latest` }],
+    });
+  }
+}
+
+loadRelease();
+</script>
+</body>
+</html>
